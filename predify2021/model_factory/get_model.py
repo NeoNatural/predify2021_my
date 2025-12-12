@@ -1,9 +1,10 @@
 import toml
 import torch
 import predify
+import os
 
-
-
+from pathlib import Path
+from torchvision.models import vgg16,VGG16_Weights
 
 def set_hyperparams(net,hps):
 
@@ -23,7 +24,9 @@ def get_model(name,pretrained=False,deep_graph=False,timesteps=4,hyperparams=Non
 
         import torchvision
         from .pvgg16_shared import PVGG16SeparateHP , DeepPVGG16SeparateHP    
-        vgg = torchvision.models.vgg16(pretrained=True)
+        # vgg = torchvision.models.vgg16(pretrained=True)
+        weights = VGG16_Weights.IMAGENET1K_V1
+        vgg = vgg16(weights=weights)
 
         if deep_graph == True:
             pvgg16 = DeepPVGG16SeparateHP(backbone=vgg,number_of_pcoders=5,number_of_timesteps=timesteps ,build_graph=True, random_init=False, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
@@ -32,11 +35,17 @@ def get_model(name,pretrained=False,deep_graph=False,timesteps=4,hyperparams=Non
 
 
         if pretrained == True:
-            backward_weight_dir = './'
+            # backward_weight_dir = './'
+            backward_weight_dir = Path(__file__).resolve().parent
             print (f'Loading weights from {backward_weight_dir}')
             for n in range(pvgg16.number_of_pcoders):
-                checkpoint = torch.load(opj(backward_weight_dir, f'pvgg16_imagenet_pretrained_pc{n+1}_pmodule.pth'))
-                getattr(net,f"pcoder{n+1}").pmodule.load_state_dict(checkpoint)
+                # print('n: ',n)
+                checkpoint = torch.load(os.path.join(backward_weight_dir, f'pvgg16_imagenet_pretrained_pc{n+1}_pmodule.pth'))
+                # print(checkpoint.keys())
+                if n==0:
+                    getattr(pvgg16,f"pcoder{n+1}").pmodule.load_state_dict({k.replace("0.", ""): v for k, v in checkpoint.items()})
+                else:
+                    getattr(pvgg16,f"pcoder{n+1}").pmodule.load_state_dict(checkpoint)
         
         if hyperparams is not None:
             set_hyperparams(pvgg16,hyperparams)

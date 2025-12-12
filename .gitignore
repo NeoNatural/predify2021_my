@@ -1,0 +1,9 @@
+predify2021/model_factory/weights_pvgg16_imagenet.zip
+predify2021/model_factory/pvgg16_imagenet_pretrained_pc1_pmodule.pth
+predify2021/model_factory/pvgg16_imagenet_pretrained_pc2_pmodule.pth
+predify2021/model_factory/pvgg16_imagenet_pretrained_pc3_pmodule.pth
+predify2021/model_factory/pvgg16_imagenet_pretrained_pc4_pmodule.pth
+predify2021/model_factory/pvgg16_imagenet_pretrained_pc5_pmodule.pth
+*.pyc
+predify2021/manifold_projection/corr_dists_pvgg.pdf
+*.png

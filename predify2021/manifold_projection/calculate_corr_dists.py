@@ -13,11 +13,11 @@
 #%%
 
 gpu_to_use       = '0'
-number_of_images = 1000
+number_of_images = 10
 batchsize        = 1
 MAX_TIME_STEP    = 15
 NOISES           = [0.25,0.5,0.75,1.,2.]
-imagenet_root    = '/path/to/imagenet/dataset'
+imagenet_root    = 'C:/Users/liang/Documents/ImageNet'
 
 
 
@@ -37,16 +37,20 @@ import torch
 import torchvision
 from torchvision.datasets import ImageNet
 import torchvision.models as models
-from torchvision.transforms import transforms
+# from torchvision.transforms import transforms
+from torchvision.models import VGG16_Weights
 
 device = torch.device('cuda:0')
 rseed = 17
 np.random.seed(rseed)
 torch.manual_seed(rseed)
 
+import sys
+sys.path.append("..")
 
-from ..model_factory import get_model
+from model_factory import get_model,set_hyperparams
 
+lws = [1,1,1,1,1]
 
 hps  = [
         {"ffm":0.8, "fbm":0.1,  "erm":0.01*lws[0]},
@@ -57,7 +61,7 @@ hps  = [
     ]
 
 
-model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps)
+model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps).to(device)
 
 
 
@@ -72,25 +76,31 @@ def corrdist(x,y):
 ################################################
 #       Dataset and train-test helpers
 ################################################
-transform_val = transforms.Compose([
-    transforms.Resize(224),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+# transform_val = transforms.Compose([
+#     transforms.Resize(224),
+#     transforms.CenterCrop(224),
+#     transforms.ToTensor(),
+#     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-])
+# ])
 
+weights = VGG16_Weights.IMAGENET1K_V1
 
+val_ds = ImageNet(
+    imagenet_root, 'val', 
+    transform = weights.transforms()
+    )
 
-val_ds     = ImageNet(imagenet_root, split='val', download=False, transform=transform_val)
+# val_ds     = ImageNet(imagenet_root, split='val',transform=transform_val)
 indices    = np.random.permutation(len(val_ds)).tolist()
 val_ds     = torch.utils.data.Subset(val_ds, indices[:number_of_images])
-val_loader = torch.utils.data.DataLoader(val_ds,  batch_size=batchsize, shuffle=True, drop_last=False,num_workers=16,pin_memory=True)
+val_loader = torch.utils.data.DataLoader(val_ds,  batch_size=batchsize, shuffle=False, drop_last=False,num_workers=1,pin_memory=True)
 
 
 
 
 def get_corr_list(net,hp_t0,MAX_TIME_STEP):
+    print('enter func')
 
     net.eval()
     net.reset()
@@ -106,7 +116,11 @@ def get_corr_list(net,hp_t0,MAX_TIME_STEP):
         corr_list = np.zeros((MAX_TIME_STEP,net.number_of_pcoders))
 
 
-        for i,(inputs,labels) in enumerate(val_loader,0):
+        # for i,(inputs,labels) in enumerate(val_loader,0):
+        for i,(inputs,labels) in enumerate(val_ds):
+            
+            inputs = inputs.unsqueeze(0)
+            print('index: ',i)
                 
             # get reps for clean images
             reps[NOISE] = []
@@ -151,9 +165,10 @@ def get_corr_list(net,hp_t0,MAX_TIME_STEP):
 
 
 
-
+print('start run')
 tstart = datetime.now()
-corrects_noise_dict = get_corr_list(net,hp_t0,MAX_TIME_STEP)
+# corrects_noise_dict = get_corr_list(net,hp_t0,MAX_TIME_STEP)
+corrects_noise_dict = get_corr_list(model,hps,MAX_TIME_STEP)
 tend = datetime.now()
 print ("Time taken :",tend-tstart)
 
