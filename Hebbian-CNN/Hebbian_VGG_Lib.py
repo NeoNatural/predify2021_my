@@ -86,9 +86,11 @@ class Hebb_Boost_C2(nn.Module): #
         return self.x_tmp.unsqueeze(0)
     
     def zero_boost_weight(self):
-        if not self.ori_mode:
-            self.boost_weight *= 0
-            # self.refrac_value *= 0
+        # 在 ori_mode 下没有 boost_weight，直接跳过
+        if self.ori_mode or not hasattr(self, "boost_weight"):
+            return
+        self.boost_weight *= 0
+        # self.refrac_value *= 0
     
     def set_para(self,decay, coeff,cut_perc=0.1, inh_c=4):
         self.decay = decay
@@ -188,6 +190,8 @@ class Hebb_VGG_Channel_Boost(nn.Module):
         return x * (self.x_tmp / (x_avr + 1e-12)).view(1,-1,1,1)
     
     def zero_boost_weight(self):
+        if self.ori_mode or not hasattr(self, "boost_weight"):
+            return
         self.boost_weight *= 0
     
     def set_para(self,decay, coeff, inh_c=2):

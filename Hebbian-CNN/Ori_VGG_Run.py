@@ -125,7 +125,7 @@ time0 = time.time()
 task_name = 'N_Back-'
 # task_name = 'Class_N_Back-'
 # task_name = 'Cluster-'
-for gap in [1,2]:    
+for gap in [1]:    
     with open('Log/DatasetSample/' + task_name + str(gap) +'.pckl','rb') as f:
         sample_dict = pickle.load(f)
     idx_log_list = sample_dict['out_list']

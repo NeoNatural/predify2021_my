@@ -263,7 +263,7 @@ hps  = [
         {"ffm":0.8, "fbm":0.1,  "erm":0.01*lws[4]},
     ]
 
-MAX_TIME_STEP = 10
+MAX_TIME_STEP = 5
 
 model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps).to(device)
 
@@ -408,9 +408,10 @@ for gap in [1]:
                 # plt.imshow(img_np)
                 # plt.axis('off')
                 # plt.show()
-                # if sample_idx > 10:
-                #     4/0
-                #     break
+                
+                if sample_idx >= 40 - 1:
+                    # 4/0
+                    break
                    
         outputs_per_timestep = [torch.cat(step_outs,dim=0) for step_outs in Out_list]
         Out_arr = torch.stack(outputs_per_timestep,dim=1).numpy()
