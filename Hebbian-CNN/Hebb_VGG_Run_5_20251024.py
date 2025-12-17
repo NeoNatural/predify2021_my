@@ -53,6 +53,7 @@ import sys
 
 sys.path.append("..")
 from predify2021.model_factory.get_model import get_model
+from predify_hebb_inject import inject_hebb_into_pcoder_rep
 
 # In[] 20250523
 from torchvision.models import VGG16_Weights
@@ -267,19 +268,12 @@ MAX_TIME_STEP = 5
 
 model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps).to(device)
 
-# Hebb 模块：本脚本开启 Hebb 机制（ori_mode=False）
+# Hebb 模块：本脚本开启 Hebb 机制（ori_mode=False），注入到 PCoder rep 中
 from Hebbian_VGG_Lib import Hebb_VGG_Channel_Boost, Hebb_Boost_C2
-hebb_feat_1 = Hebb_VGG_Channel_Boost(ori_mode=False).to(device)
-hebb_feat_2 = Hebb_VGG_Channel_Boost(ori_mode=False).to(device)
-
-def _attach_hebb_feat(layer, hebb_layer):
-    def hook_fn(m, inp, out):
-        return hebb_layer(out)
-    layer.register_forward_hook(hook_fn)
-
-# VGG16 (no BN) pool4 at idx 23, pool5 at idx 30
-_attach_hebb_feat(model.backbone.features[23], hebb_feat_1)
-_attach_hebb_feat(model.backbone.features[30], hebb_feat_2)
+hebb_pcoder4 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=False).to(device)
+hebb_pcoder5 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=False).to(device)
+inject_hebb_into_pcoder_rep(model, 4, hebb_pcoder4)
+inject_hebb_into_pcoder_rep(model, 5, hebb_pcoder5)
 
 # Wrap classifier with Hebbian heads (active)
 model.backbone.classifier = Hebbian_VGG_Classifier(model.backbone.classifier,ori_mode=False).to(device)
@@ -289,8 +283,8 @@ model.eval()
 hebb_layer_list = [
     model.backbone.classifier.hebbian_2,
     model.backbone.classifier.hebbian_1,
-    hebb_feat_2,
-    hebb_feat_1
+    hebb_pcoder5,
+    hebb_pcoder4
     ] # Top-down order
 
 layer_para_list = [
@@ -394,12 +388,19 @@ for gap in [1]:
 
                 net_input = img.unsqueeze(0).to(device)
                 model.reset()
+                for layer in hebb_layer_list:
+                    if hasattr(layer, "update_enabled"):
+                        layer.update_enabled = False
                 for timestep_idx in range(MAX_TIME_STEP):
                     if timestep_idx == 0:
                         out = model(net_input)
                     else:
                         out = model(None)
                     Out_list[timestep_idx].append(out.detach().cpu())
+                # 网络动力学收敛后（最后一个 timestep 之后）再更新 Hebb 权重
+                for layer in hebb_layer_list:
+                    if hasattr(layer, "commit_update"):
+                        layer.commit_update()
                 y_list.append(int(y_true))
                 
                 

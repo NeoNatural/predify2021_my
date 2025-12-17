@@ -34,6 +34,7 @@ from itertools import product
 import sys
 
 from Hebbian_VGG_Lib import Hebbian_VGG_Features,Hebbian_VGG_Classifier, Hebb_VGG_Channel_Boost, Hebb_Boost_C2
+from predify_hebb_inject import inject_hebb_into_pcoder_rep
 from Utils.Utility import Cal_Accurate_
 from torchvision.datasets import ImageNet
 from torchvision.models import VGG16_Weights
@@ -67,18 +68,11 @@ MAX_TIME_STEP = 10
 
 model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps).to(device)
 
-# Hebb 层以 ori_mode=True（仅记录，不更新权重）
-hebb_feat_1 = Hebb_VGG_Channel_Boost(ori_mode=True).to(device)
-hebb_feat_2 = Hebb_VGG_Channel_Boost(ori_mode=True).to(device)
-
-def _attach_hebb_feat(layer, hebb_layer):
-    def hook_fn(m, inp, out):
-        return hebb_layer(out)
-    layer.register_forward_hook(hook_fn)
-
-# VGG16 (no BN) pool4 at idx 23, pool5 at idx 30
-_attach_hebb_feat(model.backbone.features[23], hebb_feat_1)
-_attach_hebb_feat(model.backbone.features[30], hebb_feat_2)
+# Hebb 层以 ori_mode=True（仅记录，不更新权重），注入到 PCoder rep 中
+hebb_pcoder4 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=True).to(device)
+hebb_pcoder5 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=True).to(device)
+inject_hebb_into_pcoder_rep(model, 4, hebb_pcoder4)
+inject_hebb_into_pcoder_rep(model, 5, hebb_pcoder5)
 
 # classifier 包装为 Hebbian 版本（ori_mode=True）
 model.backbone.classifier = Hebbian_VGG_Classifier(model.backbone.classifier,ori_mode=True).to(device)
@@ -88,8 +82,8 @@ model.eval()
 hebb_layer_list = [
     model.backbone.classifier.hebbian_2,
     model.backbone.classifier.hebbian_1,
-    hebb_feat_2,
-    hebb_feat_1
+    hebb_pcoder5,
+    hebb_pcoder4
     ] # Top-down order
 
 # In[]
@@ -151,12 +145,18 @@ for gap in [1]:
 
             net_input = img.unsqueeze(0).to(device)
             model.reset()
+            for layer in hebb_layer_list:
+                if hasattr(layer, "update_enabled"):
+                    layer.update_enabled = False
             for timestep_idx in range(MAX_TIME_STEP):
                 if timestep_idx == 0:
                     out = model(net_input)
                 else:
                     out = model(None)
                 Out_list[timestep_idx].append(out.detach().cpu())
+            for layer in hebb_layer_list:
+                if hasattr(layer, "commit_update"):
+                    layer.commit_update()
             y_list.append(int(y))
                
     outputs_per_timestep = [torch.cat(step_outs,dim=0) for step_outs in Out_list]

@@ -26,6 +26,9 @@ class Hebb_Boost_C2(nn.Module): #
         self.x_tmp = None
         self.layer_index = None
         self.ori_mode = ori_mode
+        self.update_enabled = True
+        self._pending_x_tmp = None
+        self._pending_x_sparse = None
 
         
         if not ori_mode:
@@ -48,7 +51,7 @@ class Hebb_Boost_C2(nn.Module): #
             return x
         
         x = x.squeeze(0)    
-        boost_vec = torch.mv(self.boost_weight,x)
+        boost_vec = torch.mv(self.boost_weight, x)
         
         # inh_value = boost_vec.mean()
         # if boost_vec.max() >0:
@@ -56,41 +59,50 @@ class Hebb_Boost_C2(nn.Module): #
         # else:
         #     inh_value=0
         
-        # self.x_tmp = self.nonlin(x + boost_vec - self.inh_c * inh_value)
-        self.x_tmp = (x + boost_vec) #* (1 - self.refrac_value)
+        x_tmp = (x + boost_vec) #* (1 - self.refrac_value)
         
-        max_val = self.x_tmp.max()
+        max_val = x_tmp.max()
         
         # self.refrac_value += self.x_tmp/max_val * self.refrac_coeff
         
         # self.x_tmp *= x.max() /self.x_tmp.max()
         
-        self.x_tmp.masked_fill_(self.x_tmp < max_val * self.cut_perc,0)
+        x_tmp = x_tmp.masked_fill(x_tmp < max_val * self.cut_perc, 0)
         
         
         # threshold = torch.quantile(self.x_tmp, 0.9) # quantile thres
         threshold = max_val * self.sparse_thres # E%-max
 
-        x_sparse = self.x_tmp.masked_fill(self.x_tmp < threshold, 0)
-        x_sparse /= x_sparse[x_sparse>0].mean()
-        # x_sparse = self.x_tmp
+        x_sparse = x_tmp.masked_fill(x_tmp < threshold, 0)
+        denom = x_sparse[x_sparse > 0].mean()
+        if torch.isfinite(denom) and denom > 0:
+            x_sparse = x_sparse / denom
 
-        weight_tmp = torch.outer(self.x_tmp,x_sparse)
+        self.x_tmp = x_tmp
+        self._pending_x_tmp = x_tmp.detach()
+        self._pending_x_sparse = x_sparse.detach()
         
-        weight_tmp.fill_diagonal_(0)
-        
-        # weight_tmp /= torch.norm(weight_tmp)
-        
-        self.boost_weight = self.boost_weight * self.decay \
-            + self.coeff * weight_tmp        
-        return self.x_tmp.unsqueeze(0)
-    
+        if self.update_enabled:
+            self.commit_update()
+
+        return x_tmp.unsqueeze(0)
+
+    def commit_update(self):
+        if self.ori_mode or not hasattr(self, "boost_weight") or self._pending_x_tmp is None or self._pending_x_sparse is None:
+            return
+        with torch.no_grad():
+            weight_tmp = torch.outer(self._pending_x_tmp, self._pending_x_sparse)
+            weight_tmp.fill_diagonal_(0)
+            self.boost_weight.mul_(self.decay).add_(self.coeff * weight_tmp)
+
     def zero_boost_weight(self):
         # 在 ori_mode 下没有 boost_weight，直接跳过
         if self.ori_mode or not hasattr(self, "boost_weight"):
             return
         self.boost_weight *= 0
         # self.refrac_value *= 0
+        self._pending_x_tmp = None
+        self._pending_x_sparse = None
     
     def set_para(self,decay, coeff,cut_perc=0.1, inh_c=4):
         self.decay = decay
@@ -142,6 +154,9 @@ class Hebb_VGG_Channel_Boost(nn.Module):
         self.x_full = None
         self.layer_index = None
         self.avgpool = nn.AdaptiveAvgPool2d(1)   
+        self.update_enabled = True
+        self._pending_x_tmp = None
+        self._pending_x_sparse = None
         
         if not ori_mode:
             self.register_buffer('boost_weight', torch.zeros((in_channels, in_channels)))      
@@ -169,30 +184,37 @@ class Hebb_VGG_Channel_Boost(nn.Module):
         
         inh_value = boost_vec.mean()
         
-        self.x_tmp = self.nonlin(x_avr + boost_vec - self.inh_c * inh_value)
+        x_tmp = self.nonlin(x_avr + boost_vec - self.inh_c * inh_value)
         
-        threshold = self.x_tmp.max() * self.sparse_thres # E%-max
-        x_sparse = self.x_tmp.masked_fill(self.x_tmp < threshold, 0)
-        # x_sparse = self.x_tmp
+        threshold = x_tmp.max() * self.sparse_thres # E%-max
+        x_sparse = x_tmp.masked_fill(x_tmp < threshold, 0)
 
-        weight_tmp = torch.outer(self.x_tmp,x_sparse)
+        self.x_tmp = x_tmp
+        self._pending_x_tmp = x_tmp.detach()
+        self._pending_x_sparse = x_sparse.detach()
 
-        # weight_tmp = torch.outer(self.x_tmp,self.x_tmp)
-        
-        weight_tmp.fill_diagonal_(0)
-        
-        weight_tmp /= torch.norm(weight_tmp)
-        # weight_tmp /= weight_tmp.max()
-                
-        self.boost_weight = self.boost_weight * self.decay \
-            + self.coeff * weight_tmp        
+        if self.update_enabled:
+            self.commit_update()
             
-        return x * (self.x_tmp / (x_avr + 1e-12)).view(1,-1,1,1)
+        return x * (x_tmp / (x_avr + 1e-12)).view(1,-1,1,1)
+
+    def commit_update(self):
+        if self.ori_mode or not hasattr(self, "boost_weight") or self._pending_x_tmp is None or self._pending_x_sparse is None:
+            return
+        with torch.no_grad():
+            weight_tmp = torch.outer(self._pending_x_tmp, self._pending_x_sparse)
+            weight_tmp.fill_diagonal_(0)
+            norm = torch.norm(weight_tmp)
+            if torch.isfinite(norm) and norm > 0:
+                weight_tmp = weight_tmp / norm
+            self.boost_weight.mul_(self.decay).add_(self.coeff * weight_tmp)
     
     def zero_boost_weight(self):
         if self.ori_mode or not hasattr(self, "boost_weight"):
             return
         self.boost_weight *= 0
+        self._pending_x_tmp = None
+        self._pending_x_sparse = None
     
     def set_para(self,decay, coeff, inh_c=2):
         self.decay = decay
