@@ -86,6 +86,9 @@ hebb_layer_list = [
     hebb_pcoder4
     ] # Top-down order
 
+pcoder_indices_to_record = [3,5]
+pcoder_record_list = [getattr(model, f"pcoder{idx}") for idx in pcoder_indices_to_record]
+
 # In[]
 def _store_layer_metrics(layer, inp, out):
     global layer_metrics_arr,sample_idx,timestep_idx
@@ -95,12 +98,21 @@ def _store_layer_metrics(layer, inp, out):
     
     layer_metrics_arr[sample_idx, timestep_idx, layer.layer_index] = torch.cat(results)
 
+def _store_pcoder_prediction_error(pcoder, inp, out):
+    global pcoder_error_arr, sample_idx, timestep_idx
+    pcoder_error_arr[sample_idx, timestep_idx, pcoder.metric_index] = pcoder.prediction_error.detach()
+
 ###################################################    
 for i,layer in enumerate(hebb_layer_list):
     layer.layer_index = i
     layer.register_forward_hook(_store_layer_metrics)
 
 layer_num = len(hebb_layer_list)
+pcoder_num = len(pcoder_record_list)
+
+for i, pcoder in enumerate(pcoder_record_list):
+    pcoder.metric_index = i
+    pcoder.register_forward_hook(_store_pcoder_prediction_error)
 
 quantile_q = torch.tensor([0.25, 0.5, 0.75],device=device)
 
@@ -127,6 +139,7 @@ for gap in [1]:
     sample_num = len(idx_log_list) 
     
     layer_metrics_arr = torch.zeros((sample_num,MAX_TIME_STEP,layer_num,metric_num),device=device)
+    pcoder_error_arr = torch.zeros((sample_num, MAX_TIME_STEP, pcoder_num), device=device)
     
     y_list = []
     Out_list = [[] for _ in range(MAX_TIME_STEP)]
@@ -185,6 +198,8 @@ for gap in [1]:
         'y_list':y_list,
         'Out_list':Out_arr,
         'layer_metrics_arr':layer_metrics_arr.cpu().numpy(),
+        'pcoder_error_arr': pcoder_error_arr.cpu().numpy(),
+        'pcoder_indices_to_record': pcoder_indices_to_record,
         'acc_top_1':acc_top_1,
         'acc_top_5':acc_top_5,
         'acc_result':acc_result,
