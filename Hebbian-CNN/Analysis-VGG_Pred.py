@@ -31,11 +31,12 @@ import seaborn as sns
 import pickle
 
 from Utils.Utility import Get_N_Back_Slice,CalMetricVectors,ResortList,Choose_Correct_Trials_2,GetFullRunName
+from Utils.Utility import Cal_Accurate_
 # In[]
 if_store_log_locally = True
 
 task_name = 'N_Back-'
-gap_list = [1,2,4]
+# gap_list = [1,2,4]
 
 if not if_store_log_locally:
     save_output_path = os.path.join('Log')
@@ -46,7 +47,25 @@ else:
 
 used_gap = 1
 
+USED_NUM = 240
+
 # In[]
+
+def CalcSoftmaxMetrics_GTlable():
+    return
+
+def GetRawLogits_GTlable():
+    return
+
+def GetRawLogits_Top1(Out_ori,Out_first,Out_rep):
+    arg_max = np.argmax(Out_ori,axis=1)
+    idx=(range(len(arg_max)),arg_max)
+    
+    return {
+        'first':Out_first[idx].mean(),
+        'repetition':Out_rep[idx].mean(),
+        'ori':Out_ori[idx].mean()
+        }
 
 def CalcSoftmaxMetrics_Top1(Out_ori,Out_first,Out_rep):
     softmax_ori = softmax(Out_ori, axis = 1)
@@ -67,7 +86,23 @@ def CalcSoftmaxMetrics_Top1(Out_ori,Out_first,Out_rep):
     #     'repetition':Out_rep[idx].mean(),
     #     'ori':softmax_ori[idx].mean()
     #     }
+
+def GetRawLogits_Top5(Out_ori,Out_first,Out_rep):
     
+    idx= (np.arange(len(Out_ori))[:, None],np.argsort(Out_ori,axis=1)[:,-5:-1]) #2-5,not including top1
+    # idx= (np.arange(len(softmax_ori))[:, None],np.argsort(softmax_ori,axis=1)[:,-5:])
+    
+    _ori = Out_ori[idx].mean(axis=1)
+    
+    _first = Out_first[idx].mean(axis=1)
+    _rep = Out_rep[idx].mean(axis=1)
+    
+    return {
+        'first':_first.mean(),
+        'repetition':_rep.mean(),
+        'ori':_ori.mean()
+        } 
+
 def CalcSoftmaxMetrics_Top5(Out_ori,Out_first,Out_rep):
     softmax_ori = softmax(Out_ori, axis = 1)
     
@@ -113,8 +148,8 @@ def CalLayerMetric(metric_idx):
 target_index = 0 # 0:mean ;1:non-zero-per
 
 run_list = [
-    {'name':'Top1_Softmax','metric_function':CalcSoftmaxMetrics_Top1,'test_target':'Out_list'},
-    {'name':'Top5_Softmax','metric_function':CalcSoftmaxMetrics_Top5,'test_target':'Out_list'},
+    {'name':'Top1_Softmax','metric_function':GetRawLogits_Top1,'test_target':'Out_list'},
+    {'name':'Top5_Softmax','metric_function':GetRawLogits_Top5,'test_target':'Out_list'},
     {'name':'Layer_Mean','layer_index':0,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'}, # according to the order defined in layer_metric_func
     {'name':'Layer_Mean','layer_index':1,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'},
     {'name':'Layer_Mean','layer_index':2,'metric_function':CalLayerMetric(0),'test_target':'layer_metrics_arr'},
@@ -125,15 +160,16 @@ run_list = [
 # In[]  
 
   
-def Cal_First_Rep_Ori(SaveDict, SaveDict_Ori,test_target, metric_function, gap=1, layer_index=None):
+def Cal_First_Rep_Ori(SaveDict, SaveDict_Ori,test_target, metric_function, gap=1, layer_index=None, crop_num=None, time_idx=2):
     
     ret_dict = {}
     
-    
+    if not crop_num:
+        crop_num = 4800
     
     for if_correct in [True,False]:
         
-        slc_first = Get_N_Back_Slice(gap,False)
+        slc_first = Get_N_Back_Slice(gap,False,crop_num)
         # slc_first = list(range(0,9600,2))
         
         # new_order = np.array(SaveDict['idx_log_list'])[slc_first]
@@ -144,7 +180,7 @@ def Cal_First_Rep_Ori(SaveDict, SaveDict_Ori,test_target, metric_function, gap=1
         slc_ifcorrect = Choose_Correct_Trials_2(SaveDict_Ori['acc_top_1'],slc_first,if_correct)     
         ##         
         
-        slc_rep = Get_N_Back_Slice(gap,True)
+        slc_rep = Get_N_Back_Slice(gap,True,crop_num)
         # slc_rep = list(range(1,9600,2))
         
         # new_order2 = np.array(SaveDict['idx_log_list'])[slc_rep]
@@ -159,15 +195,19 @@ def Cal_First_Rep_Ori(SaveDict, SaveDict_Ori,test_target, metric_function, gap=1
         #     if_correct
         #     )     
         # ##                 
-        
-        ori = SaveDict_Ori[test_target][slc_first][:,layer_index,:] if layer_index else SaveDict_Ori[test_target][slc_first]
+        '''
+        A major edit below. [:,layer_index,:] -> [:,axis_of_timestep,layer_index,:]
+        due to time iteration in predify model.
+        E.g. ori = SaveDict_Ori[test_target][slc_first][:,layer_index,:] if layer_index else SaveDict_Ori[test_target][slc_first] -> ori = SaveDict_Ori[test_target][slc_first][:,-1,layer_index,:] if layer_index else SaveDict_Ori[test_target][slc_first][:,-1:]
+        '''        
+        ori = SaveDict_Ori[test_target][slc_first][:,time_idx,layer_index,:] if layer_index else SaveDict_Ori[test_target][slc_first][:,time_idx,:]
         
         ori_=ori[slc_ifcorrect]
         
-        first = SaveDict[test_target][slc_first][:,layer_index,:] if layer_index else SaveDict[test_target][slc_first]
+        first = SaveDict[test_target][slc_first][:,time_idx,layer_index,:] if layer_index else SaveDict[test_target][slc_first][:,time_idx,:]
         first_ = first[slc_ifcorrect]
         
-        rep = SaveDict[test_target][slc_rep][:,layer_index,:] if layer_index else SaveDict[test_target][slc_rep]
+        rep = SaveDict[test_target][slc_rep][:,time_idx,layer_index,:] if layer_index else SaveDict[test_target][slc_rep][:,time_idx,:]
         rep_ = rep[slc_ifcorrect]
         
         # ret_dict['correct' if if_correct else 'error'] = metric_function(ori_[0:1000],first_[0:1000],rep_[0:1000])
@@ -177,8 +217,8 @@ def Cal_First_Rep_Ori(SaveDict, SaveDict_Ori,test_target, metric_function, gap=1
         
     return ret_dict
 
-# In[]
 
+# In[]
 ori_filepath = os.path.join('Log','OriModelResult_'+task_name + str(used_gap) + '.pckl')
 
 with open(ori_filepath,'rb') as f:
@@ -211,7 +251,7 @@ for priming in [False,True]:
         layer_index = run['layer_index'] if 'layer_index' in run else None
         one_cond_metric.update(
             Cal_First_Rep_Ori(SaveDict, SaveDict_Ori,run['test_target'], 
-                              run['metric_function'], gap=used_gap,layer_index=layer_index)
+                              run['metric_function'], gap=used_gap,layer_index=layer_index,crop_num=USED_NUM//2)
             )
         
         sort_name = GetFullRunName(run)
@@ -228,6 +268,22 @@ for priming in [False,True]:
     #     'acc_top1_drop':'Accuracy-Top1 Drop',
     #     'acc_top5_drop':'Accuracy-Top5 Drop',
     #     }
+
+# In[]
+
+for time_idx in range(10):
+    
+    y_list = SaveDict_Ori['y_list']
+    
+    Out_arr = SaveDict_Ori['Out_list']
+    
+    acc_top_1 = Cal_Accurate_(Out_arr[:,time_idx,:],y_list,1)
+    acc_top_5 = Cal_Accurate_(Out_arr[:,time_idx,:],y_list,5)
+    
+    # count only odd trials 
+    acc_result = (acc_top_1[1::2].count(True)/len(acc_top_1) * 2, acc_top_5[1::2].count(True)/len(acc_top_5)*2)
+    
+    print('Acc: ',acc_result)
     
     # In[]
     

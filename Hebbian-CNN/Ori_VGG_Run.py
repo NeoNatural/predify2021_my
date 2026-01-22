@@ -91,7 +91,7 @@ def _store_layer_metrics(layer, inp, out):
     global layer_metrics_arr,sample_idx,timestep_idx
     results = []
     for func_name in layer_metric_func:
-        results.append(layer_metric_func[func_name](layer.x_tmp))
+        results.append(layer_metric_func[func_name](layer.x_tmp.detach()))
     
     layer_metrics_arr[sample_idx, timestep_idx, layer.layer_index] = torch.cat(results)
 
@@ -158,13 +158,20 @@ for gap in [1]:
                 if hasattr(layer, "commit_update"):
                     layer.commit_update()
             y_list.append(int(y))
+            
+            if sample_idx >= 240 - 1:
+                # 4/0
+                break
                
     outputs_per_timestep = [torch.cat(step_outs,dim=0) for step_outs in Out_list]
     Out_arr = torch.stack(outputs_per_timestep,dim=1).numpy()
     
+    
     acc_top_1 = Cal_Accurate_(Out_arr[:,-1,:],y_list,1)
     acc_top_5 = Cal_Accurate_(Out_arr[:,-1,:],y_list,5)
-    acc_result = (acc_top_1.count(True)/len(acc_top_1), acc_top_5.count(True)/len(acc_top_5))
+    
+    # count only odd trials 
+    acc_result = (acc_top_1[1::2].count(True)/len(acc_top_1) * 2, acc_top_5[1::2].count(True)/len(acc_top_5)*2)
     
     print('Acc: ',acc_result)
     

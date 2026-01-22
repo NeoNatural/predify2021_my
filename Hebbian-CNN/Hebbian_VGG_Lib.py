@@ -74,6 +74,10 @@ class Hebb_Boost_C2(nn.Module): #
         threshold = max_val * self.sparse_thres # E%-max
 
         x_sparse = x_tmp.masked_fill(x_tmp < threshold, 0)
+        
+        
+        # x_sparse = x_tmp
+        
         denom = x_sparse[x_sparse > 0].mean()
         if torch.isfinite(denom) and denom > 0:
             x_sparse = x_sparse / denom

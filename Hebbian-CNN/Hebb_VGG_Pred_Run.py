@@ -56,6 +56,8 @@ from predify2021.model_factory.get_model import get_model
 from predify_hebb_inject import inject_hebb_into_pcoder_rep
 
 # In[] 20250523
+
+# 为了和predify预训练权重对齐，没有使用BN版本
 from torchvision.models import VGG16_Weights
 weights = VGG16_Weights.IMAGENET1K_V1
 
@@ -264,19 +266,21 @@ hps  = [
         {"ffm":0.8, "fbm":0.1,  "erm":0.01*lws[4]},
     ]
 
-MAX_TIME_STEP = 5
+MAX_TIME_STEP = 10
+
+ORI_MODE = False
 
 model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps).to(device)
 
 # Hebb 模块：本脚本开启 Hebb 机制（ori_mode=False），注入到 PCoder rep 中
 from Hebbian_VGG_Lib import Hebb_VGG_Channel_Boost, Hebb_Boost_C2
-hebb_pcoder4 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=False).to(device)
-hebb_pcoder5 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=False).to(device)
+hebb_pcoder4 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=ORI_MODE).to(device)
+hebb_pcoder5 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=ORI_MODE).to(device)
 inject_hebb_into_pcoder_rep(model, 4, hebb_pcoder4)
 inject_hebb_into_pcoder_rep(model, 5, hebb_pcoder5)
 
 # Wrap classifier with Hebbian heads (active)
-model.backbone.classifier = Hebbian_VGG_Classifier(model.backbone.classifier,ori_mode=False).to(device)
+model.backbone.classifier = Hebbian_VGG_Classifier(model.backbone.classifier,ori_mode=ORI_MODE).to(device)
 
 model.eval()
 
@@ -288,11 +292,18 @@ hebb_layer_list = [
     ] # Top-down order
 
 layer_para_list = [
-    {'decay':0.5, 'coeff':0.05,'cut_perc':0.05},
-    {'decay':0.5, 'coeff':0.05,'cut_perc':0.05},
-    {'decay':0.5, 'coeff':0.2, 'inh_c':2},
-    {'decay':0.5, 'coeff':0.2, 'inh_c':2},
+    {'decay':0.5, 'coeff':0.01,'cut_perc':0.1},
+    {'decay':0.5, 'coeff':0.01,'cut_perc':0.1},
+    {'decay':0.5, 'coeff':0.05, 'inh_c':4},
+    {'decay':0.5, 'coeff':0.05, 'inh_c':4},
 ]
+
+# layer_para_list = [
+#     {'decay':0, 'coeff':0.0,'cut_perc':0.0},
+#     {'decay':0, 'coeff':0.0,'cut_perc':0.0},
+#     {'decay':0, 'coeff':0.0, 'inh_c':0},
+#     {'decay':0, 'coeff':0.0, 'inh_c':0},
+# ]
 
 
 # In[]
@@ -300,7 +311,7 @@ def _store_layer_metrics(layer, inp, out):
     global layer_metrics_arr,sample_idx,timestep_idx
     results = []
     for func_name in layer_metric_func:
-        results.append(layer_metric_func[func_name](layer.x_tmp))
+        results.append(layer_metric_func[func_name](layer.x_tmp.detach()))
     
     layer_metrics_arr[sample_idx, timestep_idx, layer.layer_index] = torch.cat(results)
 
@@ -410,7 +421,7 @@ for gap in [1]:
                 # plt.axis('off')
                 # plt.show()
                 
-                if sample_idx >= 40 - 1:
+                if sample_idx >= 240 - 1:
                     # 4/0
                     break
                    
@@ -419,7 +430,9 @@ for gap in [1]:
         
         acc_top_1 = Cal_Accurate_(Out_arr[:,-1,:],y_list,1)
         acc_top_5 = Cal_Accurate_(Out_arr[:,-1,:],y_list,5)
-        acc_result = (acc_top_1.count(True)/len(acc_top_1), acc_top_5.count(True)/len(acc_top_5))
+        
+        # count only odd trials 
+        acc_result = (acc_top_1[1::2].count(True)/len(acc_top_1) * 2, acc_top_5[1::2].count(True)/len(acc_top_5)*2)
         
         print('Acc: ',acc_result)
         
