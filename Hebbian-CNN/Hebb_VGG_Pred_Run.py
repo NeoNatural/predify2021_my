@@ -267,6 +267,10 @@ hps  = [
     ]
 
 MAX_TIME_STEP = 10
+# Shorter run length for even-indexed trials to save compute
+REDUCED_TIME_STEP = 1
+
+max_sample_num = 800
 
 ORI_MODE = False
 
@@ -305,7 +309,7 @@ layer_para_list = [
 #     {'decay':0, 'coeff':0.0, 'inh_c':0},
 # ]
 
-pcoder_indices_to_record = [3,5]
+pcoder_indices_to_record = [4,5]
 pcoder_record_list = [getattr(model, f"pcoder{idx}") for idx in pcoder_indices_to_record]
 
 
@@ -363,6 +367,7 @@ for gap in [1]:
     
     sample_num = len(idx_log_list) 
     
+    
     layer_metrics_arr = torch.zeros((sample_num,MAX_TIME_STEP,layer_num,metric_num),device=device)
     pcoder_error_arr = torch.zeros((sample_num, MAX_TIME_STEP, pcoder_num), device=device)
 
@@ -415,16 +420,24 @@ for gap in [1]:
                 for layer in hebb_layer_list:
                     if hasattr(layer, "update_enabled"):
                         layer.update_enabled = False
-                for timestep_idx in range(MAX_TIME_STEP):
+                time_steps_this_trial = REDUCED_TIME_STEP if sample_idx % 2 == 0 else MAX_TIME_STEP
+                for timestep_idx in range(time_steps_this_trial):
                     if timestep_idx == 0:
                         out = model(net_input)
                     else:
                         out = model(None)
                     Out_list[timestep_idx].append(out.detach().cpu())
+                # pad remaining timesteps with the last output to keep array shapes consistent
+                final_out = out.detach().cpu()
+                for timestep_idx in range(time_steps_this_trial, MAX_TIME_STEP):
+                    Out_list[timestep_idx].append(final_out)
                 # 网络动力学收敛后（最后一个 timestep 之后）再更新 Hebb 权重
-                for layer in hebb_layer_list:
-                    if hasattr(layer, "commit_update"):
-                        layer.commit_update()
+                next_sample_idx = sample_idx + 1
+                will_zero_next = (next_sample_idx < max_sample_num) and (next_sample_idx % 2 == 0)
+                if not will_zero_next:
+                    for layer in hebb_layer_list:
+                        if hasattr(layer, "commit_update"):
+                            layer.commit_update()
                 y_list.append(int(y_true))
                 
                 
@@ -434,7 +447,7 @@ for gap in [1]:
                 # plt.axis('off')
                 # plt.show()
                 
-                if sample_idx >= 240 - 1:
+                if sample_idx >= max_sample_num - 1:
                     # 4/0
                     break
                    
@@ -459,7 +472,7 @@ for gap in [1]:
             'y_list':y_list,
             'Out_list':Out_arr,
             'layer_metrics_arr':layer_metrics_arr.cpu().numpy(),
-            'pcoder_error_arr': pcoder_error_arr.cpu().numpy(),
+            'pcoder_error_arr': pcoder_error_arr.cpu().numpy()[...,None], # dim expansion to be compatible to metric_function
             'pcoder_indices_to_record': pcoder_indices_to_record,
             'acc_top_1':acc_top_1,
             'acc_top_5':acc_top_5,

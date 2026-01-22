@@ -8,3 +8,7 @@ predify2021/model_factory/pvgg16_imagenet_pretrained_pc5_pmodule.pth
 predify2021/manifold_projection/corr_dists_pvgg.pdf
 *.png
 /Hebbian-CNN/Log
+*.jpg
+*.jpg
+*.jpg
+*.jpg

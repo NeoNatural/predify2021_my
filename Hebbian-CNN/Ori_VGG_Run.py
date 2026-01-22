@@ -65,6 +65,10 @@ hps  = [
         {"ffm":0.8, "fbm":0.1,  "erm":0.01*lws[4]},
     ]
 MAX_TIME_STEP = 10
+# Shorter run length for even-indexed trials to save compute
+REDUCED_TIME_STEP = 1
+
+max_sample_num = 800
 
 model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps).to(device)
 
@@ -86,7 +90,7 @@ hebb_layer_list = [
     hebb_pcoder4
     ] # Top-down order
 
-pcoder_indices_to_record = [3,5]
+pcoder_indices_to_record = [4,5]
 pcoder_record_list = [getattr(model, f"pcoder{idx}") for idx in pcoder_indices_to_record]
 
 # In[]
@@ -138,6 +142,7 @@ for gap in [1]:
     
     sample_num = len(idx_log_list) 
     
+    
     layer_metrics_arr = torch.zeros((sample_num,MAX_TIME_STEP,layer_num,metric_num),device=device)
     pcoder_error_arr = torch.zeros((sample_num, MAX_TIME_STEP, pcoder_num), device=device)
     
@@ -161,18 +166,23 @@ for gap in [1]:
             for layer in hebb_layer_list:
                 if hasattr(layer, "update_enabled"):
                     layer.update_enabled = False
-            for timestep_idx in range(MAX_TIME_STEP):
+            time_steps_this_trial = MAX_TIME_STEP
+            for timestep_idx in range(time_steps_this_trial):
                 if timestep_idx == 0:
                     out = model(net_input)
                 else:
                     out = model(None)
                 Out_list[timestep_idx].append(out.detach().cpu())
-            for layer in hebb_layer_list:
-                if hasattr(layer, "commit_update"):
-                    layer.commit_update()
+
+            next_sample_idx = sample_idx + 1
+            will_zero_next = (next_sample_idx < max_sample_num) and (next_sample_idx % 2 == 0)
+            if not will_zero_next:
+                for layer in hebb_layer_list:
+                    if hasattr(layer, "commit_update"):
+                        layer.commit_update()
             y_list.append(int(y))
             
-            if sample_idx >= 240 - 1:
+            if sample_idx >= max_sample_num - 1:
                 # 4/0
                 break
                
@@ -198,7 +208,7 @@ for gap in [1]:
         'y_list':y_list,
         'Out_list':Out_arr,
         'layer_metrics_arr':layer_metrics_arr.cpu().numpy(),
-        'pcoder_error_arr': pcoder_error_arr.cpu().numpy(),
+        'pcoder_error_arr': pcoder_error_arr.cpu().numpy()[...,None], # dim expansion to be compatible to metric_function
         'pcoder_indices_to_record': pcoder_indices_to_record,
         'acc_top_1':acc_top_1,
         'acc_top_5':acc_top_5,

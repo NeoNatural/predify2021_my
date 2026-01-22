@@ -50,7 +50,7 @@ else:
 
 used_gap = 1
 
-USED_NUM = 240
+USED_NUM = 800
 
 MAX_TIME_STEP = 10
 
@@ -62,6 +62,14 @@ def CalcSoftmaxMetrics_GTlable():
 def GetRawLogits_GTlable():
     return
 
+def GetPCError(Out_ori,Out_first,Out_rep):
+    
+    return {
+        'first':Out_first[:,0].mean(),
+        'repetition':Out_rep[:,0].mean(),
+        'ori':Out_ori[:,0].mean()
+        }
+
 def GetRawLogits_Top1(Out_ori,Out_first,Out_rep):
     arg_max = np.argmax(Out_ori,axis=1)
     idx=(range(len(arg_max)),arg_max)
@@ -71,6 +79,8 @@ def GetRawLogits_Top1(Out_ori,Out_first,Out_rep):
         'repetition':Out_rep[idx].mean(),
         'ori':Out_ori[idx].mean()
         }
+
+# [:,time_idx,layer_index,:]
 
 def CalcSoftmaxMetrics_Top1(Out_ori,Out_first,Out_rep):
     softmax_ori = softmax(Out_ori, axis = 1)
@@ -152,14 +162,22 @@ def CalLayerMetric(metric_idx):
 
 target_index = 0 # 0:mean ;1:non-zero-per
 
+metric_name_dict = {
+    0:'Mean Value',
+    1:'Non-zero Percentage'
+    }
+
 run_list = [
     {'name':'Top1_Logits','metric_function':GetRawLogits_Top1,'test_target':'Out_list'},
     {'name':'Top5_Logits','metric_function':GetRawLogits_Top5,'test_target':'Out_list'},
-    {'name':'Layer_Mean','layer_index':0,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'}, # according to the order defined in layer_metric_func
-    {'name':'Layer_Mean','layer_index':1,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'},
-    {'name':'Layer_Mean','layer_index':2,'metric_function':CalLayerMetric(0),'test_target':'layer_metrics_arr'},
-    {'name':'Layer_Mean','layer_index':3,'metric_function':CalLayerMetric(0),'test_target':'layer_metrics_arr'},
-
+    ########  Layer activation
+    {'name':'FC-2 Activation','layer_index':0,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'}, # according to the order defined in layer_metric_func
+    {'name':'FC-1 Activation','layer_index':1,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'},
+    {'name':'Conv-5 Activation','layer_index':2,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'},
+    {'name':'Conv-4 Activation','layer_index':3,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'},
+    ######## PCoder prediction error (notice the order of layer_index is reversed)
+    {'name':'Conv-5 PC Error','layer_index':1,'metric_function':CalLayerMetric(0),'test_target':'pcoder_error_arr'},
+    {'name':'Conv-4 PC Error','layer_index':0,'metric_function':CalLayerMetric(0),'test_target':'pcoder_error_arr'},
     ]
 
 # In[]  
@@ -262,7 +280,7 @@ for priming in [False,True]:
         Cond_Sort = {}
         
         for run in run_list:
-            Cond_Sort[GetFullRunName(run)] = {}
+            Cond_Sort[run['name']] = {}
             # for inh_c in inh_c_list:
             #     Cond_Sort[GetFullRunName(run)][inh_c] = {}
          
@@ -296,7 +314,7 @@ for priming in [False,True]:
                                   run['metric_function'], gap=used_gap,layer_index=layer_index,crop_num=USED_NUM//2,time_idx=time_idx)
                 )
             
-            sort_name = GetFullRunName(run)
+            sort_name = run['name']
             Cond_Sort[sort_name] = one_cond_metric
         time_step_list.append(Cond_Sort)
         
@@ -334,9 +352,15 @@ for key in Cond_Sort.keys():
              label = ['NonPrime','Prime','Vanilla'],
              )
     
-    y_label = 'Layer Activation' if 'Layer' in title else 'Output Value'
+    if 'Error' in title:
+        y_label = 'MSE'
+    elif 'Activation' in title:    
+        y_label = metric_name_dict[target_index]
+    else:
+        y_label = None
     
-    plt.ylabel(y_label)
+    if y_label:
+        plt.ylabel(y_label)
     plt.xlabel('Time steps')
     plt.legend()
     # In[]
@@ -354,7 +378,7 @@ fig, axs = plt.subplots(1,len(run_list),layout="constrained",figsize=(14,5))
 
 for i in range(len(run_list)):
     ax = axs[i]
-    sort_name = GetFullRunName(run_list[i])
+    sort_name = run_list[i]['name']
     title = sort_name
     values_np = Cond_Sort_prime[False][time_idx][title]['all']
     values_p = Cond_Sort_prime[True][time_idx][title]['all']
@@ -388,7 +412,7 @@ fig, axs = plt.subplots(1,len(run_list),layout="constrained",figsize=(20,5))
 for i in range(len(run_list)):
     ax = axs[i]
     
-    sort_name = GetFullRunName(run_list[i])
+    sort_name = run_list[i]['name']
     title = sort_name
     
     width = 0.5
