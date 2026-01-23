@@ -363,6 +363,9 @@ for key in Cond_Sort.keys():
         plt.ylabel(y_label)
     plt.xlabel('Time steps')
     plt.legend()
+    plt.savefig(os.path.join('Fig',title+'.jpg'),dpi=600)
+
+    plt.show()
     # In[]
     
     # title_list = ['Top1 Softmax',
@@ -377,7 +380,7 @@ fig, axs = plt.subplots(1,len(run_list),layout="constrained",figsize=(14,5))
 # para_selected = (0.3,0.05)
 
 for i in range(len(run_list)):
-    ax = axs[i]
+    ax = axs[len(run_list)-i-1]
     sort_name = run_list[i]['name']
     title = sort_name
     values_np = Cond_Sort_prime[False][time_idx][title]['all']
@@ -410,7 +413,7 @@ fig.show()
 fig, axs = plt.subplots(1,len(run_list),layout="constrained",figsize=(20,5))
 
 for i in range(len(run_list)):
-    ax = axs[i]
+    ax = axs[len(run_list)-i-1]
     
     sort_name = run_list[i]['name']
     title = sort_name
