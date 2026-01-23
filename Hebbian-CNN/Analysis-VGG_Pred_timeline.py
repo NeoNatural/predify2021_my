@@ -170,6 +170,8 @@ metric_name_dict = {
 run_list = [
     {'name':'Top1_Logits','metric_function':GetRawLogits_Top1,'test_target':'Out_list'},
     {'name':'Top5_Logits','metric_function':GetRawLogits_Top5,'test_target':'Out_list'},
+    {'name':'Top1_Softmax','metric_function':CalcSoftmaxMetrics_Top1,'test_target':'Out_list'},
+    {'name':'Top5_Softmax','metric_function':CalcSoftmaxMetrics_Top5,'test_target':'Out_list'},
     ########  Layer activation
     {'name':'FC-2 Activation','layer_index':0,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'}, # according to the order defined in layer_metric_func
     {'name':'FC-1 Activation','layer_index':1,'metric_function':CalLayerMetric(target_index),'test_target':'layer_metrics_arr'},
@@ -286,7 +288,7 @@ for priming in [False,True]:
          
         for run in run_list:        
             one_cond_metric = {}
-            if 'Top1' in run['name']:
+            if 'Top1_Logits' in run['name']:
                 acc_top_1 = Cal_Accurate_(SaveDict['Out_list'][:,time_idx,:],SaveDict['y_list'],1)
                 acc_top_1_ori = Cal_Accurate_(SaveDict_Ori['Out_list'][:,time_idx,:],SaveDict_Ori['y_list'],1)
                 # one_cond_metric['acc_top1'] = 
@@ -298,7 +300,7 @@ for priming in [False,True]:
                 
                 Cond_Sort['Top1_Acc'] = {'all':tmp}           
             
-            if 'Top5' in run['name']:
+            if 'Top5_Logits' in run['name']:
                 acc_top_5 = Cal_Accurate_(SaveDict['Out_list'][:,time_idx,:],SaveDict['y_list'],5)
                 acc_top_5_ori = Cal_Accurate_(SaveDict_Ori['Out_list'][:,time_idx,:],SaveDict_Ori['y_list'],5)
                 # one_cond_metric['acc_top5'] = acc_top_5[1::2].count(True)/len(acc_top_5)*2
@@ -380,8 +382,8 @@ fig, axs = plt.subplots(1,len(run_list),layout="constrained",figsize=(14,5))
 # para_selected = (0.3,0.05)
 
 for i in range(len(run_list)):
-    ax = axs[len(run_list)-i-1]
-    sort_name = run_list[i]['name']
+    ax = axs[i]
+    sort_name = run_list[len(run_list)-i-1]['name']
     title = sort_name
     values_np = Cond_Sort_prime[False][time_idx][title]['all']
     values_p = Cond_Sort_prime[True][time_idx][title]['all']
@@ -413,9 +415,9 @@ fig.show()
 fig, axs = plt.subplots(1,len(run_list),layout="constrained",figsize=(20,5))
 
 for i in range(len(run_list)):
-    ax = axs[len(run_list)-i-1]
+    ax = axs[i]
     
-    sort_name = run_list[i]['name']
+    sort_name = run_list[len(run_list)-i-1]['name']
     title = sort_name
     
     width = 0.5

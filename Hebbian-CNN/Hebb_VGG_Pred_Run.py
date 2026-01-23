@@ -268,7 +268,7 @@ hps  = [
 
 MAX_TIME_STEP = 10
 # Shorter run length for even-indexed trials to save compute
-REDUCED_TIME_STEP = 1
+REDUCED_TIME_STEP = 2
 
 max_sample_num = 800
 
