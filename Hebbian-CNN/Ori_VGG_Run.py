@@ -38,6 +38,7 @@ from predify_hebb_inject import inject_hebb_into_pcoder_rep
 from Utils.Utility import Cal_Accurate_
 from torchvision.datasets import ImageNet
 from torchvision.models import VGG16_Weights
+from OnlineSharpeningStats_Demo import OnlineSharpeningStats
 
 sys.path.append("..")
 from predify2021.model_factory.get_model import get_model
@@ -66,9 +67,9 @@ hps  = [
     ]
 MAX_TIME_STEP = 10
 # Shorter run length for even-indexed trials to save compute
-REDUCED_TIME_STEP = 1
+# REDUCED_TIME_STEP = 2
 
-max_sample_num = 800
+max_sample_num = 2000 # 2000 -> 5 rounds in total (5 samples per class) #800
 
 model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps).to(device)
 
@@ -92,6 +93,37 @@ hebb_layer_list = [
 
 pcoder_indices_to_record = [4,5]
 pcoder_record_list = [getattr(model, f"pcoder{idx}") for idx in pcoder_indices_to_record]
+
+# 在线统计（用于 sharpening 指标）的层与 hooks
+repr_layer_names = ["hebbian_2", "hebbian_1", "hebb_pcoder5", "hebb_pcoder4"]
+repr_layer_map = {
+    "hebbian_2": model.backbone.classifier.hebbian_2,
+    "hebbian_1": model.backbone.classifier.hebbian_1,
+    "hebb_pcoder5": hebb_pcoder5,
+    "hebb_pcoder4": hebb_pcoder4,
+}
+_repr_cache = {}
+
+def _make_repr_hook(name: str):
+    def hook(module, inp, out):
+        _repr_cache[name] = out.detach()
+    return hook
+
+repr_hooks = [mod.register_forward_hook(_make_repr_hook(name)) for name, mod in repr_layer_map.items()]
+
+def _update_repr_stats(stats_obj: OnlineSharpeningStats, label_tensor: torch.Tensor):
+    feats = {}
+    for lname in repr_layer_names:
+        if lname not in _repr_cache:
+            continue
+        x = _repr_cache[lname]
+        if x.dim() > 2:
+            x = x.flatten(start_dim=1)
+        elif x.dim() == 1:
+            x = x.unsqueeze(0)
+        feats[lname] = x
+    if feats:
+        stats_obj.update(feats=feats, labels=label_tensor)
 
 # In[]
 def _store_layer_metrics(layer, inp, out):
@@ -139,6 +171,9 @@ for gap in [1]:
     with open('Log/DatasetSample/' + task_name + str(gap) +'.pckl','rb') as f:
         sample_dict = pickle.load(f)
     idx_log_list = sample_dict['out_list']
+    repr_class_subset = sorted(set(sample_dict['full_clss_list'][:400]))  # only 200 classes used
+    label_to_compact = {c: i for i, c in enumerate(repr_class_subset)}
+    num_repr_classes = len(repr_class_subset)
     
     sample_num = len(idx_log_list) 
     
@@ -148,10 +183,16 @@ for gap in [1]:
     
     y_list = []
     Out_list = [[] for _ in range(MAX_TIME_STEP)]
+    repr_stats = OnlineSharpeningStats(
+        layer_names=repr_layer_names,
+        num_classes=num_repr_classes,
+        device=device,
+    )
 
     with torch.no_grad():
         
         for sample_idx,idx in enumerate(idx_log_list):
+            _repr_cache.clear()
             
             img, y = dataset[idx]
 
@@ -173,6 +214,11 @@ for gap in [1]:
                 else:
                     out = model(None)
                 Out_list[timestep_idx].append(out.detach().cpu())
+                
+            mapped_label = label_to_compact.get(int(y))
+            if sample_idx % 2 == 1: # 只记录奇数次的
+                if mapped_label is not None:
+                    _update_repr_stats(repr_stats, torch.tensor(mapped_label, device=device))
 
             next_sample_idx = sample_idx + 1
             will_zero_next = (next_sample_idx < max_sample_num) and (next_sample_idx % 2 == 0)
@@ -210,6 +256,12 @@ for gap in [1]:
         'layer_metrics_arr':layer_metrics_arr.cpu().numpy(),
         'pcoder_error_arr': pcoder_error_arr.cpu().numpy()[...,None], # dim expansion to be compatible to metric_function
         'pcoder_indices_to_record': pcoder_indices_to_record,
+        'repr_layer_names': repr_layer_names,
+        'repr_class_subset': repr_class_subset,
+        'repr_stats': {
+            k: {sk: v.cpu().numpy() for sk, v in stats.items()}
+            for k, stats in repr_stats.finalize().items()
+        },
         'acc_top_1':acc_top_1,
         'acc_top_5':acc_top_5,
         'acc_result':acc_result,
@@ -234,6 +286,9 @@ for gap in [1]:
     
     print('######################################')
     print()
+
+for h in repr_hooks:
+    h.remove()
 
 time1 = time.time() - time0
 print('Time Cost (s): ',time1)
