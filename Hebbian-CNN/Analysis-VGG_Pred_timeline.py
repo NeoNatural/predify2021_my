@@ -266,6 +266,8 @@ with open(ori_filepath,'rb') as f:
 
 
 Cond_Sort_prime = {}
+repr_mean_stats = {}
+trace_mean_stats = {}
 for priming in [False,True]:
     priming_sufix = '_Prime' if priming else '_nonPrime'
     # filelist = os.listdir(save_output_path)
@@ -273,6 +275,20 @@ for priming in [False,True]:
     file_path = os.path.join(save_output_path,'VGG_Result_N_Back-1_new'+priming_sufix+ '.pckl')
     with open(file_path,'rb') as f:
         SaveDict = pickle.load(f)
+
+    # ==== 平均 sharpening 统计（最后时间步，200 类） ====
+    layer_means = {}
+    layer_trace_means = {}
+    if 'repr_stats' in SaveDict and 'repr_layer_names' in SaveDict:
+        for lname in SaveDict['repr_layer_names']:
+            stats = SaveDict['repr_stats'][lname]
+            within = np.array(stats['within_cosine'])
+            trace_var = np.array(stats['trace_var'])
+            layer_means[lname] = np.nanmean(within)
+            layer_trace_means[lname] = np.nanmean(trace_var)
+    repr_mean_stats[priming] = layer_means
+    trace_mean_stats[priming] = layer_trace_means
+    repr_layer_order = SaveDict.get('repr_layer_names', [])
         
     ##############################
     time_step_list = []
@@ -405,7 +421,51 @@ ax.legend(loc=5,borderaxespad = -10)
 
 fig.suptitle('NonPrime Vs Prime')
 fig.savefig(os.path.join('Fig','NonPrime Vs Prime'+'.jpg'),dpi=600)
-# fig.legend(loc=5,borderaxespad = -5)
+
+fig.show()
+
+# ===== Repr sharpening（Prime 相对 NonPrime 的百分比变化）=====
+# 约定顺序：Conv4, Conv5, FC-1, FC-2
+layer_key_order = ['hebb_pcoder4','hebb_pcoder5','hebbian_1','hebbian_2']
+layer_labels = ['Conv4','Conv5','FC-1','FC-2']
+
+means_np = np.array([repr_mean_stats.get(False, {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+means_p  = np.array([repr_mean_stats.get(True,  {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+trace_np = np.array([trace_mean_stats.get(False, {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+trace_p  = np.array([trace_mean_stats.get(True,  {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+
+def pct_change(baseline, changed):
+    denom = np.where(np.abs(baseline) > 1e-12, np.abs(baseline), np.nan)
+    return (changed - baseline) / denom * 100.0
+
+pct_within = pct_change(means_np, means_p)
+pct_trace  = pct_change(trace_np,  trace_p)
+
+width = 0.6
+x = np.arange(len(layer_key_order))
+
+# within_cosine 百分比变化
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.bar(x, pct_within, width, color='slateblue')
+ax.axhline(0, color='k', linewidth=0.8)
+ax.set_xticks(x)
+ax.set_xticklabels(layer_labels, rotation=20)
+ax.set_ylabel('Prime vs NonPrime Δ% (within_cosine)')
+ax.set_title('Sharpening Δ% (final timestep, 200-class mean)')
+fig.tight_layout()
+fig.savefig(os.path.join('Fig','Sharpening_within_pct.jpg'), dpi=300)
+fig.show()
+
+# trace_var 百分比变化
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.bar(x, pct_trace, width, color='teal')
+ax.axhline(0, color='k', linewidth=0.8)
+ax.set_xticks(x)
+ax.set_xticklabels(layer_labels, rotation=20)
+ax.set_ylabel('Prime vs NonPrime Δ% (trace_var)')
+ax.set_title('Sharpening Δ% (trace_var, final timestep, 200-class mean)')
+fig.tight_layout()
+fig.savefig(os.path.join('Fig','Sharpening_trace_pct.jpg'), dpi=300)
 fig.show()
 
 # 4/0
@@ -561,7 +621,4 @@ metri = layer_metrics_arr.cpu().numpy()
 
 
 # In[]
-
-
-
 
