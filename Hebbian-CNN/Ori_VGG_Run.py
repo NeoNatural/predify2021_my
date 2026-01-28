@@ -183,11 +183,14 @@ for gap in [1]:
     
     y_list = []
     Out_list = [[] for _ in range(MAX_TIME_STEP)]
-    repr_stats = OnlineSharpeningStats(
-        layer_names=repr_layer_names,
-        num_classes=num_repr_classes,
-        device=device,
-    )
+    repr_stats_timeline = [
+        OnlineSharpeningStats(
+            layer_names=repr_layer_names,
+            num_classes=num_repr_classes,
+            device=device,
+        )
+        for _ in range(MAX_TIME_STEP)
+    ]
 
     with torch.no_grad():
         
@@ -195,6 +198,10 @@ for gap in [1]:
             _repr_cache.clear()
             
             img, y = dataset[idx]
+
+            mapped_label = label_to_compact.get(int(y)) if y >= 0 else None
+            label_tensor = torch.tensor(mapped_label, device=device) if mapped_label is not None else None
+            should_log_repr = (sample_idx % 2 == 1) and (label_tensor is not None)
 
             # 每 2 个 trial 清零一次 Hebb boost 记忆
             if sample_idx % 2 == 0:
@@ -213,12 +220,9 @@ for gap in [1]:
                     out = model(net_input)
                 else:
                     out = model(None)
+                if should_log_repr:
+                    _update_repr_stats(repr_stats_timeline[timestep_idx], label_tensor)
                 Out_list[timestep_idx].append(out.detach().cpu())
-                
-            mapped_label = label_to_compact.get(int(y))
-            if sample_idx % 2 == 1: # 只记录奇数次的
-                if mapped_label is not None:
-                    _update_repr_stats(repr_stats, torch.tensor(mapped_label, device=device))
 
             next_sample_idx = sample_idx + 1
             will_zero_next = (next_sample_idx < max_sample_num) and (next_sample_idx % 2 == 0)
@@ -258,9 +262,17 @@ for gap in [1]:
         'pcoder_indices_to_record': pcoder_indices_to_record,
         'repr_layer_names': repr_layer_names,
         'repr_class_subset': repr_class_subset,
+        'repr_stats_timeline': [
+            {
+                k: {sk: v.cpu().numpy() for sk, v in stats.items()}
+                for k, stats in stats_obj.finalize().items()
+            }
+            for stats_obj in repr_stats_timeline
+        ],
+        # 兼容旧分析脚本，默认取最后一个时间步
         'repr_stats': {
             k: {sk: v.cpu().numpy() for sk, v in stats.items()}
-            for k, stats in repr_stats.finalize().items()
+            for k, stats in repr_stats_timeline[-1].finalize().items()
         },
         'acc_top_1':acc_top_1,
         'acc_top_5':acc_top_5,

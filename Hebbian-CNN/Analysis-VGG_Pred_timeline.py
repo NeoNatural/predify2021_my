@@ -50,7 +50,7 @@ else:
 
 used_gap = 1
 
-USED_NUM = 800
+USED_NUM = 2000
 
 MAX_TIME_STEP = 10
 
@@ -264,10 +264,37 @@ ori_filepath = os.path.join('Log','OriModelResult_'+task_name + str(used_gap) + 
 with open(ori_filepath,'rb') as f:
     SaveDict_Ori = pickle.load(f)
 
+# === baseline (Vanilla / Ori model) repr stats ===
+def _get_repr_stats_timeline(sd):
+    if 'repr_stats_timeline' in sd:
+        return sd['repr_stats_timeline']
+    # fallback: replicate final stats if timeline missing
+    base = sd.get('repr_stats', {})
+    return [base for _ in range(MAX_TIME_STEP)]
+
+repr_layer_order_baseline = SaveDict_Ori.get('repr_layer_names', [])
+repr_within_timeline_ori = []
+trace_timeline_ori = []
+for stats_dict in _get_repr_stats_timeline(SaveDict_Ori):
+    layer_means_t = {}
+    layer_trace_means_t = {}
+    for lname in repr_layer_order_baseline:
+        if lname not in stats_dict:
+            continue
+        stats = stats_dict[lname]
+        within = np.array(stats['within_cosine'])
+        trace_var = np.array(stats['trace_var'])
+        layer_means_t[lname] = np.nanmean(within)
+        layer_trace_means_t[lname] = np.nanmean(trace_var)
+    repr_within_timeline_ori.append(layer_means_t)
+    trace_timeline_ori.append(layer_trace_means_t)
+
 
 Cond_Sort_prime = {}
 repr_mean_stats = {}
 trace_mean_stats = {}
+repr_within_timeline = {False: [], True: []}   # list over time, each element: dict layer->mean within
+trace_timeline = {False: [], True: []}
 for priming in [False,True]:
     priming_sufix = '_Prime' if priming else '_nonPrime'
     # filelist = os.listdir(save_output_path)
@@ -289,6 +316,26 @@ for priming in [False,True]:
     repr_mean_stats[priming] = layer_means
     trace_mean_stats[priming] = layer_trace_means
     repr_layer_order = SaveDict.get('repr_layer_names', [])
+    
+    # ==== timeline sharpening 统计（全时间步） ====
+    repr_stats_ts = SaveDict.get('repr_stats_timeline')
+    if repr_stats_ts is None:
+        # 回退：若无 timeline，复制最终统计以保持长度
+        repr_stats_ts = [SaveDict.get('repr_stats', {}) for _ in range(MAX_TIME_STEP)]
+    for time_idx in range(min(MAX_TIME_STEP, len(repr_stats_ts))):
+        layer_means_t = {}
+        layer_trace_means_t = {}
+        stats_dict = repr_stats_ts[time_idx]
+        for lname in repr_layer_order:
+            if lname not in stats_dict:
+                continue
+            stats = stats_dict[lname]
+            within = np.array(stats['within_cosine'])
+            trace_var = np.array(stats['trace_var'])
+            layer_means_t[lname] = np.nanmean(within)
+            layer_trace_means_t[lname] = np.nanmean(trace_var)
+        repr_within_timeline[priming].append(layer_means_t)
+        trace_timeline[priming].append(layer_trace_means_t)
         
     ##############################
     time_step_list = []
@@ -424,49 +471,86 @@ fig.savefig(os.path.join('Fig','NonPrime Vs Prime'+'.jpg'),dpi=600)
 
 fig.show()
 
-# ===== Repr sharpening（Prime 相对 NonPrime 的百分比变化）=====
+# ===== Repr sharpening（Prime/NonPrime 相对 Vanilla 的百分比变化）=====
 # 约定顺序：Conv4, Conv5, FC-1, FC-2
 layer_key_order = ['hebb_pcoder4','hebb_pcoder5','hebbian_1','hebbian_2']
 layer_labels = ['Conv4','Conv5','FC-1','FC-2']
 
-means_np = np.array([repr_mean_stats.get(False, {}).get(k, np.nan) for k in layer_key_order], dtype=float)
-means_p  = np.array([repr_mean_stats.get(True,  {}).get(k, np.nan) for k in layer_key_order], dtype=float)
-trace_np = np.array([trace_mean_stats.get(False, {}).get(k, np.nan) for k in layer_key_order], dtype=float)
-trace_p  = np.array([trace_mean_stats.get(True,  {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+means_np  = np.array([repr_mean_stats.get(False, {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+means_p   = np.array([repr_mean_stats.get(True,  {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+means_ori = np.array([repr_within_timeline_ori[-1].get(k, np.nan) for k in layer_key_order], dtype=float)
+trace_np  = np.array([trace_mean_stats.get(False, {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+trace_p   = np.array([trace_mean_stats.get(True,  {}).get(k, np.nan) for k in layer_key_order], dtype=float)
+trace_ori = np.array([trace_timeline_ori[-1].get(k, np.nan) for k in layer_key_order], dtype=float)
 
 def pct_change(baseline, changed):
     denom = np.where(np.abs(baseline) > 1e-12, np.abs(baseline), np.nan)
     return (changed - baseline) / denom * 100.0
 
-pct_within = pct_change(means_np, means_p)
-pct_trace  = pct_change(trace_np,  trace_p)
+pct_within_np_vs_ori = pct_change(means_ori, means_np)
+pct_within_p_vs_ori  = pct_change(means_ori, means_p)
+pct_trace_np_vs_ori  = pct_change(trace_ori,  trace_np)
+pct_trace_p_vs_ori   = pct_change(trace_ori,  trace_p)
 
 width = 0.6
 x = np.arange(len(layer_key_order))
 
-# within_cosine 百分比变化
+# within_cosine 百分比变化（对 Vanilla）
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.bar(x, pct_within, width, color='slateblue')
+ax.bar(x - width/4, pct_within_np_vs_ori, width/2, color='lightblue', label='NonPrime vs Vanilla')
+ax.bar(x + width/4, pct_within_p_vs_ori,  width/2, color='orange',    label='Prime vs Vanilla')
 ax.axhline(0, color='k', linewidth=0.8)
 ax.set_xticks(x)
 ax.set_xticklabels(layer_labels, rotation=20)
-ax.set_ylabel('Prime vs NonPrime Δ% (within_cosine)')
-ax.set_title('Sharpening Δ% (final timestep, 200-class mean)')
+ax.set_ylabel('Δ% vs Vanilla (within_cosine)')
+ax.set_title('Sharpening Δ% vs Vanilla (final timestep, 200-class mean)')
+ax.legend()
 fig.tight_layout()
 fig.savefig(os.path.join('Fig','Sharpening_within_pct.jpg'), dpi=300)
 fig.show()
 
-# trace_var 百分比变化
+# trace_var 百分比变化（对 Vanilla）
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.bar(x, pct_trace, width, color='teal')
+ax.bar(x - width/4, pct_trace_np_vs_ori, width/2, color='lightblue', label='NonPrime vs Vanilla')
+ax.bar(x + width/4, pct_trace_p_vs_ori,  width/2, color='orange',    label='Prime vs Vanilla')
 ax.axhline(0, color='k', linewidth=0.8)
 ax.set_xticks(x)
 ax.set_xticklabels(layer_labels, rotation=20)
-ax.set_ylabel('Prime vs NonPrime Δ% (trace_var)')
-ax.set_title('Sharpening Δ% (trace_var, final timestep, 200-class mean)')
+ax.set_ylabel('Δ% vs Vanilla (trace_var)')
+ax.set_title('Sharpening Δ% vs Vanilla (trace_var, final timestep, 200-class mean)')
+ax.legend()
 fig.tight_layout()
 fig.savefig(os.path.join('Fig','Sharpening_trace_pct.jpg'), dpi=300)
 fig.show()
+# ===== Repr sharpening 时间轨迹（Prime/NonPrime 相对 Vanilla 百分比） =====
+timeline_len = min(len(repr_within_timeline_ori), len(repr_within_timeline[False]), len(repr_within_timeline[True]), MAX_TIME_STEP)
+time_axis = np.arange(timeline_len)
+
+def get_pct_series_vs_ori(timeline_dict, lname, cond):
+    # cond: False -> NonPrime, True -> Prime
+    series = np.array([timeline_dict[cond][t].get(lname, np.nan) for t in range(timeline_len)], dtype=float)
+    base   = np.array([repr_within_timeline_ori[t].get(lname, np.nan) for t in range(timeline_len)], dtype=float)
+    return pct_change(base, series)
+
+for metric_name, timeline_dict, fname_suffix in [
+    ("within_cosine", repr_within_timeline, "within"),
+    ("trace_var", trace_timeline, "trace"),
+]:
+    plt.figure(figsize=(8,4))
+    colors = plt.cm.tab10.colors
+    for idx, (lname, label) in enumerate(zip(layer_key_order, layer_labels)):
+        pct_np = get_pct_series_vs_ori(timeline_dict, lname, False)
+        pct_p  = get_pct_series_vs_ori(timeline_dict, lname, True)
+        plt.plot(time_axis, pct_np, marker='o', linestyle='--', color=colors[idx%10], label=f'{label} NonPrime')
+        plt.plot(time_axis, pct_p,  marker='o', linestyle='-',  color=colors[idx%10], label=f'{label} Prime')
+    plt.axhline(0, color='k', linewidth=0.8)
+    plt.xlabel('Time steps')
+    plt.ylabel(f'Δ% vs Vanilla ({metric_name})')
+    plt.title(f'Sharpening timeline vs Vanilla ({metric_name})')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join('Fig', f'Sharpening_timeline_{fname_suffix}_pct.jpg'), dpi=300)
+    plt.show()
 
 # 4/0
     # In[]
