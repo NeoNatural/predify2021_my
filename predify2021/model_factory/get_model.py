@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from torchvision.models import vgg16,VGG16_Weights
 
+if_random = True
+
 def set_hyperparams(net,hps):
 
     num = net.number_of_pcoders
@@ -29,9 +31,9 @@ def get_model(name,pretrained=False,deep_graph=False,timesteps=4,hyperparams=Non
         vgg = vgg16(weights=weights)
 
         if deep_graph == True:
-            pvgg16 = DeepPVGG16SeparateHP(backbone=vgg,number_of_pcoders=5,number_of_timesteps=timesteps ,build_graph=True, random_init=False, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
+            pvgg16 = DeepPVGG16SeparateHP(backbone=vgg,number_of_pcoders=5,number_of_timesteps=timesteps ,build_graph=True, random_init=if_random, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
         else:
-            pvgg16 = PVGG16SeparateHP(backbone=vgg , build_graph=False, random_init=False, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
+            pvgg16 = PVGG16SeparateHP(backbone=vgg , build_graph=False, random_init=if_random, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
 
 
         if pretrained == True:

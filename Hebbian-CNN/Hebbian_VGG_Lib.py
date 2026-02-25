@@ -96,7 +96,7 @@ class Hebb_Boost_C2(nn.Module): #
             return
         with torch.no_grad():
             weight_tmp = torch.outer(self._pending_x_tmp, self._pending_x_sparse)
-            weight_tmp.fill_diagonal_(0)
+            # weight_tmp.fill_diagonal_(0)
             self.boost_weight.mul_(self.decay).add_(self.coeff * weight_tmp)
 
     def zero_boost_weight(self):
@@ -207,7 +207,7 @@ class Hebb_VGG_Channel_Boost(nn.Module):
             return
         with torch.no_grad():
             weight_tmp = torch.outer(self._pending_x_tmp, self._pending_x_sparse)
-            weight_tmp.fill_diagonal_(0)
+            # weight_tmp.fill_diagonal_(0)
             norm = torch.norm(weight_tmp)
             if torch.isfinite(norm) and norm > 0:
                 weight_tmp = weight_tmp / norm

@@ -522,35 +522,41 @@ ax.legend()
 fig.tight_layout()
 fig.savefig(os.path.join('Fig','Sharpening_trace_pct.jpg'), dpi=300)
 fig.show()
-# ===== Repr sharpening 时间轨迹（Prime/NonPrime 相对 Vanilla 百分比） =====
+# ===== Repr sharpening 时间轨迹（每层每指标，Prime/NonPrime/Vanilla，对 vanilla@t0 的百分比） =====
 timeline_len = min(len(repr_within_timeline_ori), len(repr_within_timeline[False]), len(repr_within_timeline[True]), MAX_TIME_STEP)
 time_axis = np.arange(timeline_len)
 
-def get_pct_series_vs_ori(timeline_dict, lname, cond):
-    # cond: False -> NonPrime, True -> Prime
-    series = np.array([timeline_dict[cond][t].get(lname, np.nan) for t in range(timeline_len)], dtype=float)
-    base   = np.array([repr_within_timeline_ori[t].get(lname, np.nan) for t in range(timeline_len)], dtype=float)
+def pct_series_vs_base(series, base0):
+    base = np.full_like(series, base0, dtype=float)
     return pct_change(base, series)
 
-for metric_name, timeline_dict, fname_suffix in [
-    ("within_cosine", repr_within_timeline, "within"),
-    ("trace_var", trace_timeline, "trace"),
+for metric_name, timeline_dict, fname_suffix, ori_dict in [
+    ("within_cosine", repr_within_timeline, "within", repr_within_timeline_ori),
+    ("trace_var", trace_timeline, "trace", trace_timeline_ori),
 ]:
-    plt.figure(figsize=(8,4))
-    colors = plt.cm.tab10.colors
-    for idx, (lname, label) in enumerate(zip(layer_key_order, layer_labels)):
-        pct_np = get_pct_series_vs_ori(timeline_dict, lname, False)
-        pct_p  = get_pct_series_vs_ori(timeline_dict, lname, True)
-        plt.plot(time_axis, pct_np, marker='o', linestyle='--', color=colors[idx%10], label=f'{label} NonPrime')
-        plt.plot(time_axis, pct_p,  marker='o', linestyle='-',  color=colors[idx%10], label=f'{label} Prime')
-    plt.axhline(0, color='k', linewidth=0.8)
-    plt.xlabel('Time steps')
-    plt.ylabel(f'Δ% vs Vanilla ({metric_name})')
-    plt.title(f'Sharpening timeline vs Vanilla ({metric_name})')
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join('Fig', f'Sharpening_timeline_{fname_suffix}_pct.jpg'), dpi=300)
-    plt.show()
+    for lname, label in zip(layer_key_order, layer_labels):
+        np_series  = np.array([timeline_dict[False][t].get(lname, np.nan) for t in range(timeline_len)], dtype=float)
+        p_series   = np.array([timeline_dict[True][t].get(lname,  np.nan) for t in range(timeline_len)], dtype=float)
+        ori_series = np.array([ori_dict[t].get(lname, np.nan) for t in range(timeline_len)], dtype=float)
+        base0 = ori_series[0]
+
+        pct_np  = pct_series_vs_base(np_series,  base0)
+        pct_p   = pct_series_vs_base(p_series,   base0)
+        pct_ori = pct_series_vs_base(ori_series, base0)
+
+        plt.figure(figsize=(6,4))
+        plt.plot(time_axis, pct_np,  marker='o', linestyle='-',  color='steelblue', label='NonPrime')
+        plt.plot(time_axis, pct_p,   marker='o', linestyle='-',  color='coral',     label='Prime')
+        plt.plot(time_axis, pct_ori, marker='o', linestyle='--', color='dimgray',   label='Vanilla')
+        plt.axhline(0, color='k', linewidth=0.8)
+        plt.xlabel('Time steps')
+        plt.ylabel(f'Δ% vs Vanilla@t0 ({metric_name})')
+        plt.title(f'{label} {metric_name} timeline')
+        plt.legend()
+        plt.tight_layout()
+        fname = f'Sharpening_timeline_{fname_suffix}_{lname}.jpg'
+        plt.savefig(os.path.join('Fig', fname), dpi=300)
+        plt.show()
 
 # 4/0
     # In[]

@@ -297,8 +297,13 @@ hebb_layer_list = [
     ] # Top-down order
 
 layer_para_list = [
-    {'decay':0.5, 'coeff':0.01,'cut_perc':0.1},
-    {'decay':0.5, 'coeff':0.01,'cut_perc':0.1},
+    ######################################## FC1\FC2
+    # {'decay':0.5, 'coeff':0.01,'cut_perc':0.1},
+    # {'decay':0.5, 'coeff':0.01,'cut_perc':0.1},
+    {'decay':0, 'coeff':0,'cut_perc':0},
+    {'decay':0, 'coeff':0,'cut_perc':0},
+    
+    ################################ Conv4\Conv5
     {'decay':0.5, 'coeff':0.05, 'inh_c':4},
     {'decay':0.5, 'coeff':0.05, 'inh_c':4},
 ]
