@@ -43,7 +43,7 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)    
 #################
-from Hebbian_VGG_Lib import Hebbian_VGG_Features,Hebbian_VGG_Classifier
+from Hebbian_VGG_Lib import Hebbian_VGG_Features,Hebbian_VGG_Classifier,get_default_hebb_layer_params
 from Utils.Utility import Cal_Accurate_
 # import torch.nn as nn
 from torchvision.datasets import ImageNet
@@ -70,6 +70,11 @@ dataset = ImageNet(
     imagenet_root, 'val', 
     transform = weights.transforms()
     )
+
+# In[] FC finetune weights (optional)
+FC_WEIGHT_SOURCE = 'torchvision'  # 'torchvision' or 'finetuned'
+FC_FINETUNE_CKPT_PATH = r''  # set when FC_WEIGHT_SOURCE == 'finetuned'
+FC_HEBB_COMPUTE_ENABLED = True
 
 def denormalize_imagenet(img_tensor, mean, std):
     """
@@ -277,6 +282,15 @@ ORI_MODE = False
 
 model = get_model('pvgg',pretrained=True,deep_graph=False,hyperparams=hps).to(device)
 
+if FC_WEIGHT_SOURCE == 'finetuned':
+    if not FC_FINETUNE_CKPT_PATH:
+        raise ValueError("FC_WEIGHT_SOURCE is 'finetuned' but FC_FINETUNE_CKPT_PATH is empty.")
+    ckpt = torch.load(FC_FINETUNE_CKPT_PATH, map_location=device)
+    state_dict = ckpt.get("classifier_state", ckpt)
+    model.backbone.classifier.load_state_dict(state_dict)
+elif FC_WEIGHT_SOURCE != 'torchvision':
+    raise ValueError(f"Unsupported FC_WEIGHT_SOURCE: {FC_WEIGHT_SOURCE}")
+
 # Hebb 模块：本脚本开启 Hebb 机制（ori_mode=False），注入到 PCoder rep 中
 from Hebbian_VGG_Lib import Hebb_VGG_Channel_Boost, Hebb_Boost_C2
 hebb_pcoder4 = Hebb_VGG_Channel_Boost(in_channels=512, ori_mode=ORI_MODE).to(device)
@@ -286,7 +300,8 @@ inject_hebb_into_pcoder_rep(model, 5, hebb_pcoder5)
 
 # Wrap classifier with Hebbian heads (active)
 model.backbone.classifier = Hebbian_VGG_Classifier(model.backbone.classifier,ori_mode=ORI_MODE).to(device)
-
+model.backbone.classifier.hebbian_1.compute_enabled = FC_HEBB_COMPUTE_ENABLED
+model.backbone.classifier.hebbian_2.compute_enabled = FC_HEBB_COMPUTE_ENABLED
 model.eval()
 
 hebb_layer_list = [
@@ -296,17 +311,7 @@ hebb_layer_list = [
     hebb_pcoder4
     ] # Top-down order
 
-layer_para_list = [
-    ######################################## FC1\FC2
-    # {'decay':0.5, 'coeff':0.01,'cut_perc':0.1},
-    # {'decay':0.5, 'coeff':0.01,'cut_perc':0.1},
-    {'decay':0, 'coeff':0,'cut_perc':0},
-    {'decay':0, 'coeff':0,'cut_perc':0},
-    
-    ################################ Conv4\Conv5
-    {'decay':0.5, 'coeff':0.05, 'inh_c':4},
-    {'decay':0.5, 'coeff':0.05, 'inh_c':4},
-]
+layer_para_list = get_default_hebb_layer_params()
 
 # layer_para_list = [
 #     {'decay':0, 'coeff':0.0,'cut_perc':0.0},
