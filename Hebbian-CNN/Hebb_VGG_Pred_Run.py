@@ -31,7 +31,6 @@ if computer_name == 'COLLES-161930':
 # In[]
 import numpy as np
 import torch
-import torch.nn.functional as F
 import time
 import pickle
 from itertools import product
@@ -55,6 +54,7 @@ sys.path.append("..")
 from predify2021.model_factory.get_model import get_model
 from predify_hebb_inject import inject_hebb_into_pcoder_rep
 from OnlineSharpeningStats_Demo import OnlineSharpeningStats
+from Hebb_Priming_Utils import make_half_field_stimulus_v5
 
 # In[] 20250523
 
@@ -128,133 +128,6 @@ def apply_parafovea_partial_out(img: torch.Tensor, trial_idx: int,
     return canvas
 
 # In[]
-def adjust_contrast_per_image(img: torch.Tensor, contrast_scale: float):
-    """
-    按每张图自身统计独立调整对比度。
-    img: (3,H,W), 经过 ImageNet 预处理（不一定0均值）
-    """
-    mean = img.mean(dim=(1, 2), keepdim=True)
-    std = img.std(dim=(1, 2), keepdim=True) + 1e-6
-    return mean + (img - mean) * contrast_scale
-
-
-def gaussian_blur(img: torch.Tensor, sigma: float):
-    """
-    对 (3,H,W) 图像做高斯模糊
-    """
-    if sigma <= 0:
-        return img
-    radius = int(3 * sigma)
-    size = 2 * radius + 1
-    x = torch.arange(-radius, radius + 1, dtype=torch.float32, device=img.device)
-    kernel1d = torch.exp(-0.5 * (x / sigma) ** 2)
-    kernel1d /= kernel1d.sum()
-    kernel2d = kernel1d[:, None] * kernel1d[None, :]
-    kernel2d = kernel2d.expand(img.shape[0], 1, size, size)
-    return F.conv2d(img.unsqueeze(0), kernel2d, padding=radius, groups=img.shape[0]).squeeze(0)
-
-
-def make_half_field_stimulus_v5(
-    dataset, idx, trial_idx,
-    priming=True,
-    canvas_scale: float = 2.0,
-    contrast_scale: float = 0.5,
-    blur_sigma: float = 1.0,
-    downsample_after_blur: bool = True,
-    dtype=torch.float32,
-    device=None
-):
-    """
-    Half-field priming 版本 5：
-    - 偶数 trial：左右并排两张图（宽度扩展，高度保持224）
-      -> 先调整对比度，再拼接，最后整体模糊
-    - 奇数 trial：单张图（原始224x224）
-    """
-    C, H, W = 3, 224, 224
-    if device is None:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    # === 奇数 trial ===
-    if trial_idx % 2 == 1:
-        img, y = dataset[idx]
-        img = img.to(device)
-        return img, {"y": int(y), "mode": "single"}
-
-    # === 偶数 trial ===
-    # priming half（与下一 trial 相同）
-    if priming:
-        img_priming, y_priming = dataset[idx]
-        last_rand_idx = idx
-    else:
-        # rand_idx = idx
-        # while rand_idx == idx:
-        #     tmp = random.randint(0, len(idx_log_list) - 1)
-        #     rand_idx = idx_log_list[tmp]
-        rand_idx = idx_log_list[(trial_idx+2)%len(idx_log_list)]
-        img_priming, y_priming = dataset[rand_idx]
-        # last_rand_idx = rand_idx
-
-    # other half
-    # rand_idx = idx
-    # while rand_idx == idx or rand_idx==last_rand_idx:
-    #     tmp = random.randint(0, len(idx_log_list) - 1)
-    #     rand_idx = idx_log_list[tmp]
-    rand_idx = idx_log_list[(trial_idx+4)%len(idx_log_list)]
-    img_other, y_other = dataset[rand_idx]
-
-    # 随机左右位置
-    priming_on_left = random.random() > 0.5
-
-    # 对比度调整（各自独立）
-    img_priming = adjust_contrast_per_image(img_priming.to(device), contrast_scale)
-    img_other = adjust_contrast_per_image(img_other.to(device), contrast_scale)
-
-    # 拼接
-    new_width = int(round(W * canvas_scale))
-    half_w = new_width // 2
-    canvas = torch.zeros((C, H, new_width), dtype=dtype, device=device)
-
-    # 左右各自填充（按宽度裁剪或居中）
-    def _paste_horiz(dst, img_src, x0, x1):
-        dst_w = x1 - x0
-        src_w = img_src.shape[2]
-        if dst_w >= src_w:
-            dst_start = x0 + (dst_w - src_w) // 2
-            src_start = 0
-            copy_w = src_w
-        else:
-            src_start = (src_w - dst_w) // 2
-            dst_start = x0
-            copy_w = dst_w
-        dst[:, :, dst_start:dst_start+copy_w] = img_src[:, :, src_start:src_start+copy_w]
-
-    if priming_on_left:
-        _paste_horiz(canvas, img_priming, 0, half_w)
-        _paste_horiz(canvas, img_other, new_width - half_w, new_width)
-    else:
-        _paste_horiz(canvas, img_other, 0, half_w)
-        _paste_horiz(canvas, img_priming, new_width - half_w, new_width)
-
-    # 模糊（整个画布）
-    canvas = gaussian_blur(canvas, sigma=blur_sigma)
-    
-    # ✅ 降采样（节省计算）
-    if downsample_after_blur:
-        canvas = F.interpolate(
-            canvas.unsqueeze(0),
-            scale_factor=0.5,
-            mode='bilinear',
-            align_corners=False
-        ).squeeze(0)
-
-    return canvas, {
-        "y_priming": int(y_priming),
-        "y_other": int(y_other),
-        "priming_on_left": priming_on_left,
-        "canvas_size": canvas.shape[1:],
-        "mode": "half-field"
-    }
-
 # In[]
 
 if_store_log_locally = True
@@ -451,7 +324,15 @@ for gap in [1]:
                 #     img, y = dataset[idx]
                 # img = apply_parafovea_partial_out(img, sample_idx)
                 
-                img, meta = make_half_field_stimulus_v5(dataset, idx, sample_idx, priming=priming,canvas_scale=2)
+                img, meta = make_half_field_stimulus_v5(
+                    dataset,
+                    idx,
+                    sample_idx,
+                    priming=priming,
+                    idx_log_list=idx_log_list,
+                    canvas_scale=2,
+                    device=device,
+                )
                 # print('img统计： ',img.mean(),img.std())
                 # if 'canvas_size' in meta:
                 #     print(meta['canvas_size'])

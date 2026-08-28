@@ -14,11 +14,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageNet
-from torchvision import transforms
 
 computer_name = os.environ.get('COMPUTERNAME', '')
 if computer_name == 'JACK-GP68HX':
-    imagenet_root = r'C:\Users\liang\Documents\ImageNet'
+    # imagenet_root = r'C:\Users\liang\Documents\ImageNet'
+    imagenet_root = r'E:\ImageNet' # External SSD
     map_location = 'cuda'
     local_log_root = r'C:\Users\liang\Documents\Python Scripts\CNN_Hebbian_Run\_Local_Log'
 elif computer_name == 'COLLES-161930':
@@ -41,11 +41,10 @@ sys.path.append("..")
 from predify2021.model_factory.get_model import get_model
 from predify_hebb_inject import inject_hebb_into_pcoder_rep
 from Hebbian_VGG_Lib import Hebbian_VGG_Classifier, Hebb_VGG_Channel_Boost, get_default_hebb_layer_params
+from Hebb_Priming_Utils import make_half_field_canvas
 
 from torchvision.models import VGG16_Weights
 weights = VGG16_Weights.IMAGENET1K_V1
-transform = weights.transforms()
-mean, std = transform.mean, transform.std
 
 # ------------------------------
 # Finetune config
@@ -54,7 +53,7 @@ FC_INIT_WEIGHT_SOURCE = 'torchvision'  # 'torchvision' or 'finetuned'
 FC_INIT_CKPT_PATH = r''                # set when FC_INIT_WEIGHT_SOURCE == 'finetuned'
 
 FC_HEBB_COMPUTE_ENABLED = False
-HEBB_UPDATE_ENABLED = True
+FC_HEBB_UPDATE_ENABLED = True
 FC_FORWARD_MODE = 'backbone_direct'  # 'predify' or 'backbone_direct'
 
 FC_FINETUNE_EPOCHS = 1
@@ -62,19 +61,24 @@ FC_FINETUNE_BATCH_SIZE = 64
 FC_FINETUNE_LR = 1e-3
 FC_FINETUNE_WEIGHT_DECAY = 1e-4
 FC_FINETUNE_NUM_WORKERS = 4
-FC_FINETUNE_TIME_STEPS = 1
+FC_FINETUNE_TIME_STEPS = 3
+REDUCED_TIME_STEP = 2
+FC_FINETUNE_LAST_STEP_GRAD_ONLY = True
 FC_FINETUNE_EVAL_EVERY = 1
 FC_FINETUNE_SAVE_BEST_ONLY = True
 FC_FINETUNE_RESET_HEBB_PER_BATCH = True
 FC_FINETUNE_DEFER_HEBB_UPDATE = True
 FC_FINETUNE_MAX_TRAIN_SAMPLES = None
-FC_FINETUNE_MAX_VAL_SAMPLES = None
+FC_FINETUNE_MAX_VAL_SAMPLES = 3000
 FC_FINETUNE_TAG = None
 
-if 'local_log_root' in globals():
-    FC_FINETUNE_OUT_DIR = os.path.join(local_log_root, 'Weights')
-else:
-    FC_FINETUNE_OUT_DIR = os.path.join('Weights')
+PRIMING_CANVAS_SCALE = 2.0
+PRIMING_CONTRAST_SCALE = 0.5
+PRIMING_BLUR_SIGMA = 1.0
+PRIMING_DOWNSAMPLE_AFTER_BLUR = True
+
+
+FC_FINETUNE_OUT_DIR = os.path.join('Weights')
 
 # ------------------------------
 # Helpers
@@ -103,23 +107,42 @@ def _save_code_archive(archive_path, source_paths):
     return archive_path
 
 
-def _build_imagenet_loaders(root, mean, std, batch_size, num_workers, pin_memory,
-                            max_train_samples=None, max_val_samples=None):
-    train_transform = transforms.Compose([
-        transforms.RandomResizedCrop(224),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std),
-    ])
-    val_transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std),
-    ])
+class PrimingPairDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset, canvas_scale=PRIMING_CANVAS_SCALE,
+                 contrast_scale=PRIMING_CONTRAST_SCALE, blur_sigma=PRIMING_BLUR_SIGMA,
+                 downsample_after_blur=PRIMING_DOWNSAMPLE_AFTER_BLUR):
+        self.dataset = dataset
+        self.canvas_scale = canvas_scale
+        self.contrast_scale = contrast_scale
+        self.blur_sigma = blur_sigma
+        self.downsample_after_blur = downsample_after_blur
 
-    train_dataset = ImageNet(root, "train", transform=train_transform)
-    val_dataset = ImageNet(root, "val", transform=val_transform)
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        img, y = self.dataset[idx]
+        other_idx = random.randint(0, len(self.dataset) - 1)
+        if other_idx == idx:
+            other_idx = (other_idx + 1) % len(self.dataset)
+        img_other, _ = self.dataset[other_idx]
+        priming_img, _ = make_half_field_canvas(
+            img,
+            img_other,
+            canvas_scale=self.canvas_scale,
+            contrast_scale=self.contrast_scale,
+            blur_sigma=self.blur_sigma,
+            downsample_after_blur=self.downsample_after_blur,
+            dtype=img.dtype,
+        )
+        return priming_img, img, y
+
+
+def _build_imagenet_loaders(root, batch_size, num_workers, pin_memory,
+                            max_train_samples=None, max_val_samples=None):
+    base_transform = weights.transforms()
+    train_dataset = ImageNet(root, "train", transform=base_transform)
+    val_dataset = ImageNet(root, "val", transform=base_transform)
 
     if max_train_samples is not None:
         max_train_samples = min(max_train_samples, len(train_dataset))
@@ -130,7 +153,7 @@ def _build_imagenet_loaders(root, mean, std, batch_size, num_workers, pin_memory
 
     persistent_workers = num_workers > 0
     train_loader = DataLoader(
-        train_dataset,
+        PrimingPairDataset(train_dataset),
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
@@ -138,9 +161,9 @@ def _build_imagenet_loaders(root, mean, std, batch_size, num_workers, pin_memory
         persistent_workers=persistent_workers,
     )
     val_loader = DataLoader(
-        val_dataset,
+        PrimingPairDataset(val_dataset),
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
         persistent_workers=persistent_workers,
@@ -157,20 +180,29 @@ def _set_fc_trainable(model):
     return [p for p in classifier.parameters() if p.requires_grad]
 
 
-def _forward_with_timesteps(model, inputs, time_steps, hebb_layers=None, defer_hebb_update=False, forward_mode='predify'):
+def _forward_with_timesteps(model, inputs, time_steps, hebb_layers=None,
+                            defer_hebb_update=False, forward_mode='predify',
+                            last_step_grad_only=False):
     steps = max(1, int(time_steps))
     model.reset()
+    prev_update = []
+    if hebb_layers and defer_hebb_update:
+        for layer in hebb_layers:
+            if hasattr(layer, "update_enabled"):
+                prev_update.append((layer, layer.update_enabled))
+                layer.update_enabled = False
+
     if forward_mode == 'predify':
-        prev_update = []
-        if hebb_layers and defer_hebb_update:
-            for layer in hebb_layers:
-                if hasattr(layer, "update_enabled"):
-                    prev_update.append((layer, layer.update_enabled))
-                    layer.update_enabled = False
 
         out = None
-        for step in range(steps):
-            out = model(inputs if step == 0 else None)
+        if last_step_grad_only and steps > 1:
+            for step in range(steps - 1):
+                with torch.no_grad():
+                    out = model(inputs if step == 0 else None)
+            out = model(None if steps > 1 else inputs)
+        else:
+            for step in range(steps):
+                out = model(inputs if step == 0 else None)
 
         if hebb_layers and defer_hebb_update:
             for layer, prev in prev_update:
@@ -188,17 +220,31 @@ def _forward_with_timesteps(model, inputs, time_steps, hebb_layers=None, defer_h
             _ = model.backbone(model.input_mem)
 
     out = None
-    for step in range(steps):
+    if last_step_grad_only and steps > 1:
+        for _ in range(steps - 1):
+            with torch.no_grad():
+                feats = model.backbone.features(model.input_mem)
+                feats = model.backbone.avgpool(feats)
+                feats = torch.flatten(feats, 1)
+                out = model.backbone.classifier(feats)
         with torch.no_grad():
             feats = model.backbone.features(model.input_mem)
             feats = model.backbone.avgpool(feats)
             feats = torch.flatten(feats, 1)
         out = model.backbone.classifier(feats)
+    else:
+        for _ in range(steps):
+            with torch.no_grad():
+                feats = model.backbone.features(model.input_mem)
+                feats = model.backbone.avgpool(feats)
+                feats = torch.flatten(feats, 1)
+            out = model.backbone.classifier(feats)
 
     if hebb_layers and defer_hebb_update:
-        for layer in hebb_layers:
-            if hasattr(layer, "commit_update") and getattr(layer, "update_enabled", True):
+        for layer, prev in prev_update:
+            if prev and hasattr(layer, "commit_update"):
                 layer.commit_update()
+            layer.update_enabled = prev
     return out
 
 
@@ -208,20 +254,31 @@ def _eval_top1(model, loader, device, time_steps, hebb_layers=None,
     correct = 0
     total = 0
     with torch.no_grad():
-        for images, targets in loader:
-            images = images.to(device)
+        for priming_images, main_images, targets in loader:
+            priming_images = priming_images.to(device)
+            main_images = main_images.to(device)
             targets = targets.to(device)
             if reset_hebb_per_batch and hebb_layers:
                 for layer in hebb_layers:
                     if hasattr(layer, "zero_boost_weight"):
                         layer.zero_boost_weight()
+            _forward_with_timesteps(
+                model,
+                priming_images,
+                REDUCED_TIME_STEP,
+                hebb_layers=hebb_layers,
+                defer_hebb_update=defer_hebb_update,
+                forward_mode=forward_mode,
+                last_step_grad_only=False,
+            )
             outputs = _forward_with_timesteps(
                 model,
-                images,
+                main_images,
                 time_steps,
                 hebb_layers=hebb_layers,
                 defer_hebb_update=defer_hebb_update,
                 forward_mode=forward_mode,
+                last_step_grad_only=False,
             )
             preds = outputs.argmax(dim=1)
             correct += (preds == targets).sum().item()
@@ -257,8 +314,6 @@ def finetune_fc_layers(model, device, hebb_layers, out_dir, tag=None):
     pin_memory = device.type == "cuda"
     train_loader, val_loader = _build_imagenet_loaders(
         imagenet_root,
-        mean,
-        std,
         FC_FINETUNE_BATCH_SIZE,
         FC_FINETUNE_NUM_WORKERS,
         pin_memory,
@@ -284,35 +339,50 @@ def finetune_fc_layers(model, device, hebb_layers, out_dir, tag=None):
         model.train()
         running_loss = 0.0
         total_samples = 0
-        for batch_idx, (images, targets) in enumerate(train_loader):
-            images = images.to(device)
+        for batch_idx, (priming_images, main_images, targets) in enumerate(train_loader):
+            priming_images = priming_images.to(device)
+            main_images = main_images.to(device)
             targets = targets.to(device)
             if FC_FINETUNE_RESET_HEBB_PER_BATCH and hebb_layers:
                 for layer in hebb_layers:
                     if hasattr(layer, "zero_boost_weight"):
                         layer.zero_boost_weight()
 
+            with torch.no_grad():
+                _forward_with_timesteps(
+                    model,
+                    priming_images,
+                    REDUCED_TIME_STEP,
+                    hebb_layers=hebb_layers,
+                    defer_hebb_update=FC_FINETUNE_DEFER_HEBB_UPDATE,
+                    forward_mode=FC_FORWARD_MODE,
+                    last_step_grad_only=False,
+                )
+
             optimizer.zero_grad(set_to_none=True)
             outputs = _forward_with_timesteps(
                 model,
-                images,
+                main_images,
                 FC_FINETUNE_TIME_STEPS,
                 hebb_layers=hebb_layers,
                 defer_hebb_update=FC_FINETUNE_DEFER_HEBB_UPDATE,
                 forward_mode=FC_FORWARD_MODE,
+                last_step_grad_only=FC_FINETUNE_LAST_STEP_GRAD_ONLY,
             )
             loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
 
-            running_loss += loss.item() * images.size(0)
-            total_samples += images.size(0)
+            running_loss += loss.item() * main_images.size(0)
+            total_samples += main_images.size(0)
 
             if (batch_idx + 1) % 50 == 0:
                 avg_loss = running_loss / max(1, total_samples)
                 print(f"[FC FT] Epoch {epoch+1}/{FC_FINETUNE_EPOCHS} "
                       f"Iter {batch_idx+1}/{len(train_loader)} "
                       f"Loss {avg_loss:.4f}")
+            if batch_idx>=200:
+                    break
 
         avg_loss = running_loss / max(1, total_samples)
         print(f"[FC FT] Epoch {epoch+1}/{FC_FINETUNE_EPOCHS} Loss {avg_loss:.4f}")
@@ -396,7 +466,7 @@ if __name__ == '__main__':
         if hasattr(layer, "set_para"):
             layer.set_para(**layer_para_list[i])
         if hasattr(layer, "update_enabled"):
-            layer.update_enabled = HEBB_UPDATE_ENABLED
+            layer.update_enabled = FC_HEBB_UPDATE_ENABLED
 
     print("[FC FT] Start.")
     start = time.time()
