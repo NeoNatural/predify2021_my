@@ -1,0 +1,32 @@
+[
+  {
+    "scale": 0.7051950693130493,
+    "kappa0": 0.04815527237573697,
+    "positive_kappa_count": 94080,
+    "c": 0.12875752636725193,
+    "gain_active_units": 53818514
+  },
+  {
+    "scale": 0.2922073304653168,
+    "kappa0": 0.06328380214467592,
+    "positive_kappa_count": 23520,
+    "c": 0.19164583952074246,
+    "gain_active_units": 7641596
+  },
+  {
+    "seed": 20261213,
+    "proxy_sha256": "27be1635464b51af4aa79befe77b3f9839a119384d039667992dd01b628a4818",
+    "kappa0": 0.11128304022389178,
+    "positive_kappa_count": 120,
+    "c": 0.0061627692120297985,
+    "gain_active_units": 1451626
+  },
+  {
+    "seed": 20261214,
+    "proxy_sha256": "b502a5611641798799e5169bcafa7703245fc3963f7a7a07148094f312a6cf5f",
+    "kappa0": 0.11426272383831196,
+    "positive_kappa_count": 119,
+    "c": 0.008220531615464375,
+    "gain_active_units": 1123451
+  }
+]

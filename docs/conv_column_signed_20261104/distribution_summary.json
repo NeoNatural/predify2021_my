@@ -1,0 +1,36 @@
+{
+  "complete": true,
+  "rows": 6840,
+  "layers": {
+    "1": {
+      "minimum": -2.198635087324874e-07,
+      "mean_negative_fraction": 0.1896458087971917,
+      "max_negative_fraction": 0.20718321204185486,
+      "mean_negative_mass": 1.2620122715375123e-09
+    },
+    "2": {
+      "minimum": -2.0557351376737643e-07,
+      "mean_negative_fraction": 0.2743267777065436,
+      "max_negative_fraction": 0.3094121217727661,
+      "mean_negative_mass": 3.6650746931204343e-09
+    },
+    "3": {
+      "minimum": -6.921059139131103e-07,
+      "mean_negative_fraction": 0.3380262704635108,
+      "max_negative_fraction": 0.3814722001552582,
+      "mean_negative_mass": 9.906964001423809e-09
+    },
+    "4": {
+      "minimum": -5.082864845462609e-06,
+      "mean_negative_fraction": 0.421201888775384,
+      "max_negative_fraction": 0.4627859890460968,
+      "mean_negative_mass": 4.209292203551353e-07
+    },
+    "5": {
+      "minimum": 0.0,
+      "mean_negative_fraction": 0.0,
+      "max_negative_fraction": 0.0,
+      "mean_negative_mass": 0.0
+    }
+  }
+}

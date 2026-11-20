@@ -29,6 +29,7 @@ class OnlineSharpeningStats:
         self.sum = {}
         self.sum_norm = {}
         self.sumsq = {}
+        self.sumsq_norm = {}
 
     def _init_layer(self, layer: str, D: int):
         self._dim[layer] = D
@@ -44,6 +45,9 @@ class OnlineSharpeningStats:
         )
         self.sumsq[layer] = torch.zeros(
             self.C, D, device=self.device, dtype=torch.float32
+        )
+        self.sumsq_norm[layer] = torch.zeros(
+            self.C, device=self.device, dtype=torch.float32
         )
 
     @torch.no_grad()
@@ -86,16 +90,26 @@ class OnlineSharpeningStats:
 
             # ---- sum of normalized vectors (bf16) ----
             norms = torch.linalg.norm(x_fp32, dim=1, keepdim=True).clamp_min_(self.eps)
-            x_norm = (x_fp32 / norms).to(torch.bfloat16)
-            self.sum_norm[layer].index_add_(0, labels, x_norm)
+            x_norm_fp32 = x_fp32 / norms
+            self.sum_norm[layer].index_add_(0, labels, x_norm_fp32.to(torch.bfloat16))
+            self.sumsq_norm[layer].index_add_(
+                0,
+                labels,
+                (x_norm_fp32 * x_norm_fp32).sum(dim=1),
+            )
 
     @torch.no_grad()
     def finalize(self):
         """
         Returns per-layer dict with:
           - count            [C]
-          - trace_var        [C]
-          - within_cosine    [C]
+          - trace_var                 [C]
+          - normalized_trace_var      [C]
+          - within_cosine             [C]
+          - between_scatter           scalar
+          - normalized_between_scatter scalar
+          - fisher_ratio              scalar
+          - normalized_fisher_ratio   scalar
         """
         results = {}
 
@@ -111,16 +125,62 @@ class OnlineSharpeningStats:
             var_diag = (ex2 - mu * mu).clamp_min_(0.0)
             trace_var = var_diag.sum(dim=1)           # [C]
 
-            # within-class mean cosine similarity
+            # L2-normalized geometry is invariant to uniform activation scaling.
             sn = self.sum_norm[layer].float()
+            mu_norm = sn / denom
+            normalized_ex2 = self.sumsq_norm[layer] / n_f
+            normalized_trace_var = (
+                normalized_ex2 - (mu_norm * mu_norm).sum(dim=1)
+            ).clamp_min_(0.0)
+
+            # within-class mean cosine similarity. Subtract the actual sum of
+            # normalized squared norms so all-zero representations are handled.
             sn_norm2 = (sn * sn).sum(dim=1)
-            within = (sn_norm2 - n_f) / (n_f * (n_f - 1.0)).clamp_min(1.0)
+            within = (sn_norm2 - self.sumsq_norm[layer]) / (
+                n_f * (n_f - 1.0)
+            ).clamp_min(1.0)
             within = torch.where(n >= 2, within, torch.nan * within)
+
+            valid = n >= 2
+            if valid.any():
+                raw_centroids = mu[valid]
+                norm_centroids = mu_norm[valid]
+                raw_grand_mean = raw_centroids.mean(dim=0)
+                norm_grand_mean = norm_centroids.mean(dim=0)
+                between_scatter = (
+                    (raw_centroids * raw_centroids).sum(dim=1).mean()
+                    - (raw_grand_mean * raw_grand_mean).sum()
+                ).clamp_min_(0.0)
+                normalized_between_scatter = (
+                    (norm_centroids * norm_centroids).sum(dim=1).mean()
+                    - (norm_grand_mean * norm_grand_mean).sum()
+                ).clamp_min_(0.0)
+                within_scatter = trace_var[valid].mean()
+                normalized_within_scatter = normalized_trace_var[valid].mean()
+                fisher_ratio = between_scatter / within_scatter.clamp_min(self.eps)
+                normalized_fisher_ratio = normalized_between_scatter / (
+                    normalized_within_scatter.clamp_min(self.eps)
+                )
+            else:
+                nan = torch.tensor(float("nan"), device=self.device)
+                between_scatter = nan
+                normalized_between_scatter = nan
+                within_scatter = nan
+                normalized_within_scatter = nan
+                fisher_ratio = nan
+                normalized_fisher_ratio = nan
 
             results[layer] = {
                 "count": n,
                 "trace_var": trace_var,
+                "normalized_trace_var": normalized_trace_var,
                 "within_cosine": within,
+                "within_scatter": within_scatter,
+                "normalized_within_scatter": normalized_within_scatter,
+                "between_scatter": between_scatter,
+                "normalized_between_scatter": normalized_between_scatter,
+                "fisher_ratio": fisher_ratio,
+                "normalized_fisher_ratio": normalized_fisher_ratio,
             }
 
         return results

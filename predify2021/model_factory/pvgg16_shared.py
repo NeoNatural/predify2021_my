@@ -54,7 +54,7 @@ class PVGG16SeparateHP(PNetSeparateHP):
 class DeepPVGG16SeparateHP(DeepPNetSeparateHP):
     
     def __init__(self, backbone, number_of_pcoders ,build_graph=False, number_of_timesteps=10 ,random_init=False, ff_multiplier=(0.2,0.4,0.4,0.5,0.6), fb_multiplier=(0.05,0.1,0.1,0.1,0.0), er_multiplier=(0.01,0.01,0.01,0.01,0.01)):
-        super().__init__(backbone, number_of_pcoders=number_of_pcoders, number_of_timesteps=10, build_graph=build_graph, random_init=random_init, ff_multiplier=ff_multiplier, fb_multiplier=fb_multiplier, er_multiplier=er_multiplier)
+        super().__init__(backbone, number_of_pcoders=number_of_pcoders, number_of_timesteps=number_of_timesteps, build_graph=build_graph, random_init=random_init, ff_multiplier=ff_multiplier, fb_multiplier=fb_multiplier, er_multiplier=er_multiplier)
 
 
         # PCoder number 1

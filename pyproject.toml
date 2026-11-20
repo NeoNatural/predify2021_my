@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "predify2021-experiments"
+version = "0.1.0"
+description = "Reproducible experiment infrastructure for Predify and Hebbian VGG studies"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["predify_experiments*", "predify2021*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

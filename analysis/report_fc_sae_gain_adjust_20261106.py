@@ -1,0 +1,155 @@
+"""Mechanistic report: observed diagnosis, bounded screen, and explicitly untested next proposal."""
+from pathlib import Path
+import sys,csv,pickle
+import numpy as np
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
+from analysis import fc_preview_pilot_20261105 as exp
+from analysis.fc_sae_gain_diagnosis_20261106 import OUT,DOC
+
+def csvfile(name,rows):
+    with (DOC/(name+'.csv')).open('w',encoding='utf-8-sig',newline='') as f:
+        w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
+
+def report():
+    diag=exp.read(OUT/'diagnosis.json');sel=exp.read(OUT/'selection.json');screen=exp.read(OUT/'training_screen.json')
+    audit=exp.read(OUT/'audit.json');assert audit['passed'];pilot=exp.read(OUT/'pilot_metrics.json');svm=exp.read(OUT/'readouts.json')
+    cal=exp.read(OUT/'calibration.json');protocol=exp.read(OUT/'search_protocol.json');assert protocol['source_sha256']==exp.sha(ROOT/'analysis/fc_sae_gain_search_20261106.py')
+    for p,h in protocol['dependencies'].items():assert exp.sha(ROOT/p)==h
+    old=exp.read(exp.OUT/'protocol.json');exp.validate(old)
+    for ds in audit['datasets']:
+        for entry in ds['shared_heads']:
+            path=OUT/ds['dataset']/f"{entry['method']}_{entry['layer']}_shared.pckl"
+            note=exp.read(path.with_suffix('.json'));assert note['sha256']==exp.sha(path) and note['training_signature']==entry['training_signature']
+            with path.open('rb') as f:head=pickle.load(f)
+            assert head[-1].C==1 and head[-1].n_features_in_==4096 and head[-1].n_iter_<30000
+    agreement=[]
+    for d in ('imagenet','things'):
+        with (exp.OUT/d/'reference_svm.pckl').open('rb') as f:fixed=pickle.load(f)
+        with np.load(OUT/d/'representations.npz') as rep:
+            for method in ('full','pool_only','scale1','scale2','scale_both','shuffled'):
+                for l in ('fc1','fc2'):
+                    base=fixed[l].decision_function(rep[f'full__none__{l}'])
+                    for h in ('exact','different','none'):
+                        score=fixed[l].decision_function(rep[f'{method}__{h}__{l}'])
+                        agreement.append(dict(dataset=d,method=method,layer=l,history=h,
+                            prediction_agreement=float(np.mean(score.argmax(1)==base.argmax(1))),
+                            max_score_change=float(np.abs(score-base).max())))
+    exp.write_json(DOC/'fixed_agreement.json',agreement)
+    for name,rows in (('training_screen',screen),('pilot_metrics',pilot),('readouts',svm)):csvfile(name,rows)
+    lines=['# 轻量SAE增益为什么弱，以及最小调整边界','',
+    '2026-11-06。本轮先重新读取旧小批量的实际增益、阈值与压缩统计，再做12点训练侧筛查。没有重训SAE、没有改变preview写入形式、没有修改原模型；前馈桥接与所有SVM始终使用原4096维FC。新的增益定标只增加每层一个训练统计标量。',
+    '', '## 判断', '',
+    '弱作用包含数值定标和更新机制两个直接原因；完整方法区分度下降还涉及控制方向是否有意义。放大与截零确实能加强suppression，但本轮12点没有一组同时通过全部训练单元的Fisher不降条件。因此没有选出满足联合目标的新算法。最小损伤点关闭了局部增益，只作为诊断复核，不能称为完整Hebbian增益成功。',
+    '', '## 1. 实际增益远小于名义上限', '',
+    '旧算法 m=.75 tanh(q)，q=PᵀAᵀWz。η=.75是饱和上限；实际q远未进入饱和区，所有观测单元|q|>1的比例为零，因而m≈.75q。以下均为Exact第一步，在原本非零单元上统计。分位数按单元汇总，不能与按类别/概念等权的suppression直接相减。', '',
+    '|数据／层|q RMS（全单元）|实际增益P10—P90|调制RMS（非零单元）|阈值/非零均值|阈值/最大值|原非零单元被候选截零|',
+    '|---|---:|---:|---:|---:|---:|---:|']
+    for r in diag['diagnostics']:
+        if r['history']!='exact':continue
+        g=r['active_gain_quantiles']
+        lines.append(f"|{r['dataset']} {r['layer']}|{r['q_rms']:.4f}|{g[1]:.4f}—{g[3]:.4f}|{100*r['active_modulation_rms']:.3f}%|{100*r['pool_over_active_mean']:.3f}%|{100*r['pool_over_max']:.3f}%|{100*r['originally_active_cut_fraction']:.3f}%|")
+    lines += ['',
+    '临时记忆确实存在：Exact的latent匹配κ高于Different；但两次归一化外积的写入为W=.25 offdiag(u₁u₁ᵀ)+.5 offdiag(u₂u₂ᵀ)，不是随任意preview幅度增长的权重。随后低维控制能量通过正交伴随投影分散到4096个单元，每个单元的q偏小。编码还经过训练RMS标准化，而控制路径未做明确的单位定标；不能把η当作实际干预强度。',
+    '', '## 2. 阈值弱，有限步混合还保留尾部', '',
+    '旧阈值 τ=4 mean[x·max(m,0)]。它完全依赖弱正调制：局部增益弱，抑制也随之弱。mean又包含大量原本为零的单元，而减法只会从仍为正的单元中实际取走活动。候选pre<0的总比例约65%–73%大多是原零响应，不能解释为删除了这么多有效响应。真正被第一步候选截掉的原非零单元只有约0.33%–0.46%。',
+    '',
+    '一阶量级核对：令P₊=Σxm₊/Σx，P₋=Σx(−m)₊/Σx，f为原活动比例。忽略少量跨阈值单元及逐图差异时，候选均值变化约P₊−P₋−4fP₊。ImageNet FC1 Exact中P₊≈0.455%、P₋≈0.396%、f≈.34，得到约−0.56%，与实测五步suppression约0.55%的量级吻合。β=4并不意味着减掉四倍原活动，它只乘在约0.455%的正调制增加量上，且主要作用于约三分之一的活动单元。',
+    '',
+    '更关键的是rₜ₊₁=.5rₜ+.5ReLU(…)，且r₀=x。因此r₅≥x/32：即使同一单元五次候选全部为零，只要原输入正，最终仍严格为正。旧方法的最终精确截零比例为0。它能降低弱尾的幅度，但不具备五步内真正关闭这些单元的机制。',
+    '', '## 3. 压缩没有崩溃，但不等于学到了类别相关的控制方向', '',
+    '|数据／层|训练中心化方差进入P的比例|训练投影FVU|开发投影FVU|开发活跃latent/64|',
+    '|---|---:|---:|---:|---:|']
+    for d in ('imagenet','things'):
+        for l in ('fc1','fc2'):
+            tr=next(r for r in diag['compression'] if (r['dataset'],r['layer'],r['split'])==(d,l,'train'))
+            te=next(r for r in diag['compression'] if (r['dataset'],r['layer'],r['split'])==(d,l,'development'))
+            lines.append(f"|{d} {l}|{100*tr['centered_variance_capture']:.3f}%|{100*tr['projected_fvu']:.2f}%|{100*te['projected_fvu']:.2f}%|{te['active_latents']:.2f}|")
+    lines += ['',
+    '这里P是4096→32的未放大正交行投影。保留约0.7%–0.8%的中心化能量是严格低秩子空间的能量口径，不能解释成类别信息只保留这么多，也不能单凭该比例证明随机投影不能辨类。重要限制是：64个非线性latent并没有让回投控制q脱离Pᵀ的32维子空间。',
+    '',
+    'SAE对这32维的训练FVU约7%–8%，跨概念开发FVU约12%–14%，活跃latent约26/64；不是全死，也不是旧高容量SAE那种巨大重建崩溃。不过它优化的是投影重建与L1，没有优化原FC中何种微弱响应应保留、何种干预能提高类别分离。原FC本身没有经过SAE重建，所以这些误差只影响增益估计。',
+    '',
+    '实际类别偏好检查也不支持稳定的有益增强：例如THINGS FC1，最偏好四分位单元的活动加权调制约+0.0093%，低偏好两组约+0.0481%和+0.0629%。ImageNet FC1也没有随类别偏好单调上升。FC2某些组更符合预期，但这种对齐没有跨层、跨数据集保持。',
+    '',
+    '还需区分问题本质：Exact匹配测量本次preview与target的对应；大类Fisher测量跨图像、跨概念的类别结构。强化实例或共同背景的细节可能使前者更强，同时增加后者的类内差异。旧小批量的类内散度确实略升，与该解释相符，但没有具体成分分析前不能确定强化的是哪类内容。',
+    '', '## 4. 完整方法为什么没有赢过仅抑制或缩放', '',
+    '仅抑制保留了preview匹配导致的池强度差异，去掉局部正负调制。因此它既保留Exact更强的抑制，又少了一项方向未被验证的几何变形。旧完整方法的活动加权净局部调制为小幅正值，会抵消部分池抑制；闭环更新还会改变下一步编码与池，不能把两个方法当作同一固定阈值的静态相减。',
+    '',
+    '缩放对照每张图用一个正标量匹配均值。FC1经过L2归一化后的方向几何按定义不变，Fisher自然保留；FC2因真实带偏置前馈桥接有轻微变化。完整方法按单元改变形状，若这种改变没有稳定对准有用信息，就可能比缩放更差。固定SVM仍在实际幅度的FC上检查，未把幅度引起的功能变化排除。',
+    '', '## 5. 已完成的有限参数比较', '',
+    '固定已训练的SAE与两次preview写入，只在训练折1–4的ImageNet256、THINGS320个target上比较。每个数据集／层的c_q，是训练Exact/Different在vanilla查询上、原非零单元q的合并RMS；之后固定，不按测试图重新归一化，因此没有把每张图或Exact/Different的强弱强制拉齐。',
+    '',
+    '新m=η tanh(q/c_q)，候选=ReLU[x(1+γm)−βmean(xm₊)]，α=1、T=5。搜索η∈{.05,.15}、β∈{4,12}、γ∈{0,.25,1}共12点，两层共享一组参数。γ=0是记忆池仅抑制。ηβ对γ=0只通过乘积起效，因而12点中有一对数学等效的仅抑制设置，不能视为12种独立机制。',
+    '',
+    '训练筛选要求两个历史、两个数据集、两层共8个单元的suppression都在1%–15%，且固定SVM BA下降不超过1个百分点；再最大化最差单元的Fisher变化，并要求全部Fisher不降才可验收。这里SAE和固定SVM已经拟合过这些训练折，所以是训练侧筛查，不是概念隔离的内层交叉验证。',
+    '', '|η|β|γ|活动/SVM约束通过|最差Fisher变化|平均Fisher变化|', '|---:|---:|---:|:---:|---:|---:|']
+    for r,c in zip(sel['ranking'],protocol['grid']):
+        assert r['name']==c['name']
+        lines.append(f"|{c['eta']}|{c['beta']:g}|{c['gamma']:g}|{'是' if r['eligible'] else '否'}|{r['min_fisher']:+.3f}%|{r['mean_fisher']:+.3f}%|")
+    lines += ['',
+    '没有候选通过联合目标。完整增强越强通常Fisher损失越大；这说明调整实际强度足以加强suppression，尚未产生几何收益。这里γ同时影响闭环阈值和最终均值，不能把Fisher变化全部因果归于增益方向；下一步应补上同平均活动的仅抑制比较。实际类别偏好不对齐、旧同均值缩放未显示优势，则支持优先检查控制方向。c_q分别为ImageNet FC1/FC2：'+str(cal[0]['calibration'])+'；THINGS：'+str(cal[1]['calibration'])+'。批量旧配置重放最大误差约1.91e−6。',
+    '', '## 6. 一次冻结后的旧小批量诊断复核', '',
+    '仅按训练筛查选取最小损伤点η=.05、β=4、γ=0。它未通过Fisher验收，本质是记忆驱动仅抑制；full与pool_only严格为同一方法。保留三个历史、双层串联及scale1/scale2/scale_both、打乱对照。没有根据下表再选第二个点。既有开发小批量此前已被分析，不是全新独立终测。',
+    '', '|数据／层|Exact suppression对无preview|Exact−Different suppression|Exact Fisher变化|Exact非零比例变化|固定BA|重拟合共享BA|',
+    '|---|---:|---:|---:|---:|---:|---:|']
+    for r in pilot:
+        if r['name']!='full' or r['history']!='exact':continue
+        sh=next(x for x in svm if x['dataset']==r['dataset'] and x['method']=='full' and x['layer']==r['layer'] and x['history']=='exact' and x['kind']=='shared')
+        lines.append(f"|{r['dataset']} {r['layer']}|{r['suppression']:.3f}%|{r['exact_different_suppression']:.3f}%|{r['fisher_change']:+.3f}%|{r['nonzero_change_pp']:+.3f}pp|{r['fixed_ba']:.2f}%|{100*sh['ba']:.2f}%|")
+    lines += ['', '|数据／层|对照|Exact suppression|Exact Fisher变化|固定BA|共享BA|', '|---|---|---:|---:|---:|---:|']
+    for r in pilot:
+        if r['history']!='exact' or r['name']=='full':continue
+        sh=next(x for x in svm if x['dataset']==r['dataset'] and x['method']==r['name'] and x['layer']==r['layer'] and x['history']=='exact' and x['kind']=='shared')
+        lines.append(f"|{r['dataset']} {r['layer']}|{r['name']}|{r['suppression']:.3f}%|{r['fisher_change']:+.3f}%|{r['fixed_ba']:.2f}%|{100*sh['ba']:.2f}%|")
+    lines += ['',
+    '共享SVM与旧口径相同：StandardScaler＋LinearSVC(C=1)，训练三历史各1/3权重、总样本权重不增加；只拟合实际原4096维FC。BA与AUC、Different/无preview、全部候选训练结果均附CSV/JSON。状态、桥接、均值匹配、逐trial独立与target只读检查通过；9项相关测试通过。',
+    '',
+    '冻结诊断点的固定SVM逐样本预测与vanilla一致，且固定、共享SVM的三个历史BA均保留为ImageNet81.25%、THINGS80%。但这不等于完整分数保真：Exact平均正确类margin相对vanilla下降约0.045–0.068，最大单个决策分数变化约0.151–0.235，共享AUC也有小幅变化。该点应描述为准确率保留、几何仍略损失，不能据此称为联合目标达成。',
+    '', '## 7. 建议的最小机制调整（本轮尚未执行）', '',
+    '第一阶段保持32投影/64latent和现有checkpoint，不靠重训SAE或增加参数解决问题。建议一次只加入下述明确改动，再做6点训练侧筛查。',
+    '',
+    '（a）比较当前编码器激活门约束下的回投：z=ReLU(Av+b)，D=diag(z>0)，h=Wz，q_g=PᵀAᵀDh。现有回投Aᵀh还会经过当前未激活latent的字典行。额外只读诊断发现，Exact的h能量中约30%–45%位于当前未激活latent，Different约52%–68%；门控后的q与旧q逐图平均余弦仅约0.64–0.77（Exact）。这说明它可能显著改变方向，尚不能证明改变有益。q_g（除去固定训练尺度因子）是0.5zᵀWz对原输入的梯度方向，更直接对应“哪些原单元会改变当前记忆匹配”。旧规则可理解为latent模式补全式回投，未门控不属于程序错误；新规则是一种零参数替代机制。记忆匹配的梯度仍不等于类别最优方向，需要实测。',
+    '',
+    '（b）把少量局部重分配与抑制强度分开：u=tanh(q_g/c_g)，ū_x=Σᵢxᵢuᵢ/Σᵢxᵢ，mᵢ=ε(uᵢ−ū_x)。这样ReLU之前Σᵢxᵢmᵢ=0，局部增益主要重分配活动，不靠整体增强抵消suppression；截零后均值并非严格守恒，需照常测量。c_g仅从训练折估计，ε限制最大形变，范围为±2ε。',
+    '',
+    '（c）将池从假想正增强中解耦：κₜ=zₜᵀWzₜ/(‖zₜ‖²+δ)，aₜ=κₜ/(κₜ+κ₀)，τₜ=λ[μ(rₜ)+σ(rₜ)]aₜ；rₜ₊₁=ReLU[x(1+mₜ)−τₜ]，T仍为5。κ₀为训练折合并历史的正匹配尺度，δ为数值稳定项；无preview时W=0→κ=q_g=τ=m=0，输出严格等于vanilla。不按图排序、不规定活动数量。阈值由群体活动和记忆匹配共同决定，同时避免让ε=0时抑制消失。',
+    '',
+    '建议只比较ε∈{0,.01,.03}、λ∈{.01,.03}共6点，两层先共享参数；其中ε=0是同池仅抑制。以每层Exact/Different的活动下降、Fisher/类内散度、偏好份额、弱尾和非零比例共同评价；功能上保留原固定SVM、共享适配SVM与margin。必须相对同均值缩放具有区分度收益，且不能依赖SVM改善掩盖几何变差。训练侧没有可接受点时停止选优，不去开发集继续挑参数。',
+    '',
+    '第二阶段仅在上述方向修正仍失败时考虑压缩结构：可把4096→32→64改为4096→128→32的固定快速投影＋轻量SAE，仍只训练折拟合，主要张量约26,244字节（4,128可训练参数、129统计浮点、1,024临时W值、5,120投影元数据字节），低于当前29,316字节。它扩大可学习输入子空间同时减少临时记忆宽度；不保证类别信息或读出更好，不能和第一阶段一起调以免混淆原因。',
+    '',
+    '减法阈值本身不能识别“有价值的弱响应”。有用弱信号的保护最终要由真实原FC几何及SVM功能来验收，不能因为记忆匹配更强、活动更稀疏或BA不变就自动判定成功。']
+    monitor=exp.read(OUT/'gate_monitor.json');assert monitor['source_sha256']==exp.sha(ROOT/'analysis/fc_sae_gain_gate_monitor_20261106.py')
+    insert=['','### 压缩几何的额外只读诊断','',
+        '未拟合任何latent或重建SVM，也未将它们接入前馈；只比较同一批开发target的两两余弦距离排序及类内/类间几何。这些诊断未用于选参数。', '',
+        '|数据／层|P距离与原FC的Spearman|latent距离与原FC的Spearman|P的Fisher变化|latent的Fisher变化|',
+        '|---|---:|---:|---:|---:|']
+    for d in ('imagenet','things'):
+        for l in ('fc1','fc2'):
+            pp=next(r for r in monitor['geometry'] if (r['dataset'],r['layer'],r['scope'],r['variant'])==(d,l,'development','projection'))
+            zz=next(r for r in monitor['geometry'] if (r['dataset'],r['layer'],r['scope'],r['variant'])==(d,l,'development','latent'))
+            insert.append(f"|{d} {l}|{pp['distance_rank_correlation']:.3f}|{zz['distance_rank_correlation']:.3f}|{pp['fisher_change']:+.2f}%|{zz['fisher_change']:+.2f}%|")
+    insert += ['',
+        'P保留能量小并不意味着类别结构统一消失：这里有些P的Fisher反而上升。进入latent后，原FC距离排序的相关性从约0.63–0.83降到0.27–0.39，且类别Fisher有升有降，说明相似性坐标已经改变。κ能检出Exact并不能保证AᵀWz回到原FC后就是类别有益方向。该监测不能定位全部损失来源，也不能代替原FC上的SVM功能检查。','']
+    index=lines.index('## 4. 完整方法为什么没有赢过仅抑制或缩放');lines[index:index]=insert
+    (DOC/'机制分析与最小调整方案.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+    # Compact standard scientific figure, independent of any interactive UI.
+    import matplotlib;matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    fig,axes=plt.subplots(1,2,figsize=(10,4));colors={0.:'#277da8',.25:'#f8961e',1.:'#c44e52'}
+    for c in protocol['grid']:
+        rr=[r for r in screen if r['name']==c['name']]
+        axes[0].scatter(np.mean([r['suppression'] for r in rr]),np.mean([r['fisher_change'] for r in rr]),color=colors[c['gamma']],marker='o' if c['beta']==4 else 's',s=65)
+    for g,color in colors.items():axes[0].scatter([],[],color=color,label=f'local gain factor {g:g}')
+    axes[0].axhline(0,color='grey',lw=.7);axes[0].set(xlabel='Mean suppression (%)',ylabel='Mean Fisher change (%)',title='Training screen: stronger is not sharper');axes[0].legend(fontsize=8)
+    for i,r in enumerate(x for x in diag['diagnostics'] if x['history']=='exact'):
+        qq=r['active_gain_quantiles'];axes[1].plot([qq[1],qq[3]],[i,i],lw=5,color='#277da8');axes[1].plot(qq[2],i,'o',color='#c44e52')
+    axes[1].set_yticks(range(4),[r['dataset']+' '+r['layer'] for r in diag['diagnostics'] if r['history']=='exact']);axes[1].axvline(1,color='grey',lw=.7);axes[1].set(xlabel='Actual original gain: P10--P90; dot=median',title='Default gain is close to identity');fig.tight_layout()
+    for ext in ('png','svg','pdf'):fig.savefig(DOC/('mechanism_diagnosis.'+ext),dpi=180)
+    plt.close(fig)
+    exp.write_json(DOC/'audit.json',audit)
+    files=[p for p in DOC.iterdir() if p.is_file() and p.name!='complete.json']
+    exp.write_json(DOC/'complete.json',dict(passed=True,source_sha256=exp.sha(__file__),files={p.name:exp.sha(p) for p in files},no_joint_objective_candidate=True))
+    print('REPORT COMPLETE',DOC,flush=True)
+
+if __name__=='__main__':report()

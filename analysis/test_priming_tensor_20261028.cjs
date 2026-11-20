@@ -1,0 +1,42 @@
+const {chromium}=require('C:/Users/liang/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const {pathToFileURL}=require('node:url');
+const fs=require('node:fs'),path=require('node:path');
+let qaContext=null;
+(async()=>{
+ const root=path.resolve(__dirname,'..');
+ const browser=await chromium.launchPersistentContext(path.join(root,'.viz_qa_profile_20261028'),{channel:'msedge',headless:true,viewport:{width:1100,height:950}});
+ qaContext=browser;
+ const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('requestfailed',r=>console.log('REQUEST FAILED',r.url(),r.failure()));
+ const file=path.join(root,'docs/tripartite_filtered_cv_20261027/priming-tensor-preview.html');
+ await page.goto(pathToFileURL(file).href);const frame=page.frameLocator('iframe');
+ try { await frame.locator('#pte-matrix svg').first().waitFor({timeout:45000}); }
+ catch(e){console.log('PAGE ERRORS',errors,'ALERT',await frame.locator('#pte-error').textContent().catch(()=>''));await browser.close();throw e;}
+ await page.waitForTimeout(700);
+ await frame.locator('#pte-context').selectOption('0');await frame.locator('#pte-metric').selectOption('2');await frame.locator('#pte-window').selectOption('point');
+ await frame.locator('#pte-mark').selectOption('bars');await frame.locator('#pte-readout').selectOption('t9');
+ await frame.locator('#pte-zscope').selectOption('local');
+ const frameHandle=await page.$('iframe');const fr=await frameHandle.contentFrame();
+ const metrics=await fr.evaluate(()=>({svgs:document.querySelectorAll('#pte-matrix svg').length,scene:document.querySelectorAll('#pte-scene path').length,rows:document.querySelectorAll('#pte-values tr').length,selected:document.getElementById('pte-selected').textContent,scrollWidth:document.documentElement.scrollWidth,width:innerWidth}));
+ await frame.locator('#pte-scene').screenshot({path:path.join(root,'docs/tripartite_filtered_cv_20261027/high_dimensional_bars.png')});
+ const before=await frame.locator('#pte-selected').innerText();
+ await frame.locator('#pte-context').selectOption('35');await frame.locator('#pte-metric').selectOption('4');await frame.locator('#pte-window').selectOption('early');
+ await frame.locator('#pte-readout').selectOption('mvpa');await frame.locator('#pte-mark').selectOption('points');
+ await frame.locator('#pte-zscope').selectOption('global');
+ const globalZ=await fr.evaluate(()=>[...document.querySelectorAll('#pte-scene path')].every(p=>!/NaN|Infinity/.test(p.getAttribute('d')||'')));
+ if(!globalZ)throw Error('Invalid global Z projection');await frame.locator('#pte-zscope').selectOption('local');
+ const after=await frame.locator('#pte-selected').innerText();if(before===after)throw Error('Controls did not update linked plots');
+ await page.waitForTimeout(250);
+ await frame.locator('#pte-scene').screenshot({path:path.join(root,'docs/tripartite_filtered_cv_20261027/high_dimensional_scene.png')});
+ await frame.locator('#pte-trajectory').screenshot({path:path.join(root,'docs/tripartite_filtered_cv_20261027/high_dimensional_trajectory.png')});
+ await frame.locator('#pte-auc').screenshot({path:path.join(root,'docs/tripartite_filtered_cv_20261027/high_dimensional_auc.png')});
+ await frame.locator('#pte-matrix').scrollIntoViewIfNeeded();
+ await page.screenshot({path:path.join(root,'docs/tripartite_filtered_cv_20261027/high_dimensional_desktop.png'),fullPage:true});
+ await page.setViewportSize({width:380,height:900});await page.waitForTimeout(500);
+ const mobile=await fr.evaluate(()=>({svgs:document.querySelectorAll('#pte-matrix svg').length,scrollWidth:document.documentElement.scrollWidth,width:innerWidth,smallText:[...document.querySelectorAll('#priming-tensor-explorer svg text')].filter(n=>+getComputedStyle(n).fontSize.slice(0,-2)<11).length}));
+ await page.screenshot({path:path.join(root,'docs/tripartite_filtered_cv_20261027/high_dimensional_mobile.png'),fullPage:true});
+ await page.emulateMedia({colorScheme:'dark'});await page.waitForTimeout(300);
+ const dark=await fr.evaluate(()=>({foreground:getComputedStyle(document.getElementById('priming-tensor-explorer')).color,cell_fill:document.querySelector('#pte-matrix rect').getAttribute('fill')}));
+ const result={errors,desktop:metrics,mobile,global_z_projection_valid:globalZ,dark,selection_before:before,selection_after:after};
+ fs.writeFileSync(path.join(root,'docs/tripartite_filtered_cv_20261027/high_dimensional_browser_qa.json'),JSON.stringify(result,null,2));
+ console.log(JSON.stringify(result));await browser.close();if(errors.length)process.exitCode=1;
+})().catch(async e=>{console.error(e);if(qaContext)await qaContext.close().catch(()=>{});process.exit(1)});

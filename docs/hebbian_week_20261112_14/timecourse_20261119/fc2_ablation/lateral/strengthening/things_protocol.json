@@ -1,0 +1,51 @@
+{
+  "dataset": "things",
+  "graph_sha256": "d98e3e2dd02ce87e7b4b94b9024e06762663dadfe3218688728d6c0cc6f2f4cf",
+  "gate_sha256": "25951d02d0e3323eb9ed782153696d58bb74ea12b6bc32174b611408bd5073d7",
+  "source_sha256": "33348823e10ae0cddc5ea72a7293272684aaaa28f3fe1a3f536f08158c0df336",
+  "windows": [
+    5,
+    10
+  ],
+  "arms": {
+    "baseline": [
+      0.45,
+      false,
+      false
+    ],
+    "higher_mixing": [
+      0.75,
+      false,
+      false
+    ],
+    "higher_mixing_shuffled": [
+      0.75,
+      true,
+      false
+    ],
+    "higher_mixing_original_support": [
+      0.75,
+      false,
+      true
+    ]
+  },
+  "comparisons": [
+    [
+      "higher_mixing",
+      "baseline"
+    ],
+    [
+      "higher_mixing",
+      "higher_mixing_shuffled"
+    ],
+    [
+      "higher_mixing_original_support",
+      "higher_mixing"
+    ],
+    [
+      "higher_mixing_original_support",
+      "baseline"
+    ]
+  ],
+  "note": "exploratory replay on previously inspected test batches; mean suppression unchanged; no parameter search"
+}

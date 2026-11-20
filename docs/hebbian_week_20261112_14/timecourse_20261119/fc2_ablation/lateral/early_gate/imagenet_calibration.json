@@ -1,0 +1,95 @@
+{
+  "dataset": "imagenet",
+  "validation_images": 96,
+  "validation_concepts": 24,
+  "reference": "different",
+  "steps": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "alpha_max": 0.45,
+  "suppression": 0.003,
+  "objective": "maximize held-concept (Exact - Different) mean gate gain, matching Exact each seed/step when fitting",
+  "scale_factors": [
+    {
+      "factor": 1.0,
+      "out_of_fold_gap_gain": -1.1923279602141222e-08,
+      "exact_mean_change": 1.092967284401704e-08,
+      "different_mean_change": 2.285295244615826e-08
+    },
+    {
+      "factor": 0.25,
+      "out_of_fold_gap_gain": -0.06654875208346535,
+      "exact_mean_change": -0.00021451331309732874,
+      "different_mean_change": 0.06633423877036802
+    },
+    {
+      "factor": 0.5,
+      "out_of_fold_gap_gain": -0.02465909595908698,
+      "exact_mean_change": -0.00028583630947561563,
+      "different_mean_change": 0.02437325964961136
+    },
+    {
+      "factor": 2.0,
+      "out_of_fold_gap_gain": 0.020674550321722652,
+      "exact_mean_change": -0.0018426190406103523,
+      "different_mean_change": -0.022517169362333004
+    },
+    {
+      "factor": 4.0,
+      "out_of_fold_gap_gain": 0.02698268213787923,
+      "exact_mean_change": -0.0027447901039126536,
+      "different_mean_change": -0.02972747224179189
+    },
+    {
+      "factor": 8.0,
+      "out_of_fold_gap_gain": 0.028314578370205318,
+      "exact_mean_change": -0.00320527295981839,
+      "different_mean_change": -0.03151985133002371
+    }
+  ],
+  "selected": 8.0,
+  "parameters": {
+    "thresholds": [
+      [
+        0.4444324938529536,
+        0.36500692050395456,
+        0.31363207323434467,
+        0.32783991796363393,
+        0.31448407325738753
+      ],
+      [
+        0.41697723247000473,
+        0.3117327025785093,
+        0.3006952048054531,
+        0.3042006179043126,
+        0.2983516489169057
+      ],
+      [
+        0.39505028407512155,
+        0.27489073726857494,
+        0.2773864827541162,
+        0.27023822404601633,
+        0.2711846994336676
+      ]
+    ],
+    "slopes": [
+      122.57321992941743,
+      167.4399528235944,
+      122.57321992941743
+    ]
+  },
+  "validation_exact_mean_max_error": 8.711746588702107e-08,
+  "native_validation_shards": {
+    "0000.npz": "776293ae0636f74be60ea8dfdbc8e8b9a2cd580b572e0432be1b0517c8ba0452",
+    "0024.npz": "dd3b36a9ca01df223ef2bed1a905a6c5435b63d33b63611418584db0cfdfb989",
+    "0048.npz": "c6ed2ef3b37177f7aadec9bcf39f1eaa4e35b6e870a46e2317db2d626ca7389d",
+    "0072.npz": "2315abe98d00ddfed40d1c868dab244629a60ffee077b767803dd48fc7b1aaf2"
+  },
+  "original_calibration_sha256": "5f00a81ede24bd84f0952a4892a775530a9a71d7aef010aa8ca0190d3e97f686",
+  "lock_sha256": "12f318ae867f6ed3fd9dd024fb3dae7eb0fb63835d9769363439b11665c8b1ce",
+  "source_sha256": "fd98cd78bbe4d189438d6c64fce09c021cdb969d71581088b4bdf961e52fe2fd"
+}

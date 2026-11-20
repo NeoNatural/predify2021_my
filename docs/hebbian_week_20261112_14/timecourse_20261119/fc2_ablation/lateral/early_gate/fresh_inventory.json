@@ -1,0 +1,61 @@
+{
+  "things": {
+    "concepts": {
+      "animals": 6,
+      "clothing": 6,
+      "food": 6,
+      "plants": 1,
+      "vehicles": 6
+    },
+    "photos": {
+      "animals": 24,
+      "clothing": 24,
+      "food": 24,
+      "plants": 4,
+      "vehicles": 21
+    },
+    "historically_seen_concepts": [
+      "helicopter",
+      "pine_tree",
+      "police_car",
+      "rocket",
+      "sailboat",
+      "stroller",
+      "subway"
+    ]
+  },
+  "imagenet": {
+    "concepts": {
+      "animals": 6,
+      "food": 6,
+      "clothing": 6,
+      "vehicles": 6
+    },
+    "photos": {
+      "animals": 24,
+      "clothing": 24,
+      "food": 24,
+      "vehicles": 24
+    },
+    "historically_seen_concepts": [
+      "n02669723",
+      "n03000247",
+      "n03272562",
+      "n03404251",
+      "n03617480",
+      "n03775071",
+      "n03785016",
+      "n03796401",
+      "n04252225",
+      "n04273569",
+      "n04325704",
+      "n04552348",
+      "n07711569",
+      "n07717410",
+      "n07718747",
+      "n07749582",
+      "n07754684",
+      "n07836838"
+    ]
+  }
+}

@@ -1,0 +1,534 @@
+{
+  "imagenet": {
+    "images": 1750,
+    "concepts": 147,
+    "category_images": {
+      "animals": 350,
+      "clothing": 350,
+      "food": 350,
+      "plants": 350,
+      "vehicles": 350
+    },
+    "category_concepts": {
+      "animals": 35,
+      "clothing": 35,
+      "food": 35,
+      "plants": 7,
+      "vehicles": 35
+    },
+    "readout": "StandardScaler + LinearSVC fixed C=1; train-only scaling; class/concept balanced training weights; five concept-disjoint folds",
+    "purpose": "baseline cache validation; no hyperparameter search or lateral processing",
+    "layers": {
+      "fc1": {
+        "balanced_accuracy": 0.8,
+        "macro_f1": 0.7929684238016976,
+        "macro_ovr_auc": 0.9429704218362283,
+        "auc_aggregation": "equal mean of within-fold macro OVR AUC; no ranking of margins across different fitted models",
+        "pooled_margin_macro_ovr_auc_descriptive": 0.9360461224489797,
+        "confusion_matrix": [
+          [
+            313,
+            11,
+            11,
+            8,
+            7
+          ],
+          [
+            4,
+            324,
+            9,
+            1,
+            12
+          ],
+          [
+            8,
+            16,
+            279,
+            46,
+            1
+          ],
+          [
+            15,
+            5,
+            138,
+            165,
+            27
+          ],
+          [
+            14,
+            16,
+            1,
+            0,
+            319
+          ]
+        ],
+        "fits": [
+          {
+            "fold": 0,
+            "train": 1420,
+            "test": 330,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              50,
+              70
+            ],
+            "n_iter": 109,
+            "macro_ovr_auc": 0.9530582417582417
+          },
+          {
+            "fold": 1,
+            "train": 1420,
+            "test": 330,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              50,
+              70
+            ],
+            "n_iter": 201,
+            "macro_ovr_auc": 0.9662428571428572
+          },
+          {
+            "fold": 2,
+            "train": 1370,
+            "test": 380,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              100,
+              70
+            ],
+            "n_iter": 246,
+            "macro_ovr_auc": 0.9188317972350231
+          },
+          {
+            "fold": 3,
+            "train": 1370,
+            "test": 380,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              100,
+              70
+            ],
+            "n_iter": 286,
+            "macro_ovr_auc": 0.9345543778801844
+          },
+          {
+            "fold": 4,
+            "train": 1420,
+            "test": 330,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              50,
+              70
+            ],
+            "n_iter": 280,
+            "macro_ovr_auc": 0.9421648351648351
+          }
+        ],
+        "mean_activation": 0.48487988114356995,
+        "normalized_within_scatter": 0.7969461679458618,
+        "normalized_between_scatter": 0.04686533659696579,
+        "normalized_fisher_ratio": 0.058806150881886725,
+        "geometry_scope": "descriptive whole-cache baseline; no learned transform and no significance claim"
+      },
+      "fc2": {
+        "balanced_accuracy": 0.8291428571428572,
+        "macro_f1": 0.8269790075763475,
+        "macro_ovr_auc": 0.9572898546614675,
+        "auc_aggregation": "equal mean of within-fold macro OVR AUC; no ranking of margins across different fitted models",
+        "pooled_margin_macro_ovr_auc_descriptive": 0.9515032653061224,
+        "confusion_matrix": [
+          [
+            319,
+            7,
+            11,
+            7,
+            6
+          ],
+          [
+            2,
+            323,
+            10,
+            2,
+            13
+          ],
+          [
+            5,
+            12,
+            285,
+            47,
+            1
+          ],
+          [
+            5,
+            6,
+            126,
+            201,
+            12
+          ],
+          [
+            11,
+            14,
+            2,
+            0,
+            323
+          ]
+        ],
+        "fits": [
+          {
+            "fold": 0,
+            "train": 1420,
+            "test": 330,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              50,
+              70
+            ],
+            "n_iter": 206,
+            "macro_ovr_auc": 0.9765505494505493
+          },
+          {
+            "fold": 1,
+            "train": 1420,
+            "test": 330,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              50,
+              70
+            ],
+            "n_iter": 197,
+            "macro_ovr_auc": 0.9703494505494505
+          },
+          {
+            "fold": 2,
+            "train": 1370,
+            "test": 380,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              100,
+              70
+            ],
+            "n_iter": 162,
+            "macro_ovr_auc": 0.9433548387096774
+          },
+          {
+            "fold": 3,
+            "train": 1370,
+            "test": 380,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              100,
+              70
+            ],
+            "n_iter": 170,
+            "macro_ovr_auc": 0.9463746543778802
+          },
+          {
+            "fold": 4,
+            "train": 1420,
+            "test": 330,
+            "test_per_class": [
+              70,
+              70,
+              70,
+              50,
+              70
+            ],
+            "n_iter": 216,
+            "macro_ovr_auc": 0.9498197802197803
+          }
+        ],
+        "mean_activation": 0.23194202780723572,
+        "normalized_within_scatter": 0.799277126789093,
+        "normalized_between_scatter": 0.07479798793792725,
+        "normalized_fisher_ratio": 0.09358204486397664,
+        "geometry_scope": "descriptive whole-cache baseline; no learned transform and no significance claim"
+      }
+    },
+    "source_sha256": "0509c398dc4cba49d5c36c59eb33db2b92b8604fdf0f11d342b4026182471e9b",
+    "models_sha256": "9c0c564b47a15bd2ebe2bd38a760fc8f3eb9e3fa32c387ff28c695fa8f0847e7"
+  },
+  "things": {
+    "images": 1000,
+    "concepts": 100,
+    "category_images": {
+      "animals": 200,
+      "clothing": 200,
+      "food": 200,
+      "plants": 200,
+      "vehicles": 200
+    },
+    "category_concepts": {
+      "animals": 20,
+      "clothing": 20,
+      "food": 20,
+      "plants": 20,
+      "vehicles": 20
+    },
+    "readout": "StandardScaler + LinearSVC fixed C=1; train-only scaling; class/concept balanced training weights; five concept-disjoint folds",
+    "purpose": "baseline cache validation; no hyperparameter search or lateral processing",
+    "layers": {
+      "fc1": {
+        "balanced_accuracy": 0.931,
+        "macro_f1": 0.931105389273052,
+        "macro_ovr_auc": 0.9909437499999999,
+        "auc_aggregation": "equal mean of within-fold macro OVR AUC; no ranking of margins across different fitted models",
+        "pooled_margin_macro_ovr_auc_descriptive": 0.98946125,
+        "confusion_matrix": [
+          [
+            189,
+            4,
+            2,
+            3,
+            2
+          ],
+          [
+            0,
+            191,
+            6,
+            0,
+            3
+          ],
+          [
+            1,
+            10,
+            177,
+            10,
+            2
+          ],
+          [
+            0,
+            1,
+            5,
+            194,
+            0
+          ],
+          [
+            0,
+            6,
+            6,
+            8,
+            180
+          ]
+        ],
+        "fits": [
+          {
+            "fold": 0,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 49,
+            "macro_ovr_auc": 0.9913125
+          },
+          {
+            "fold": 1,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 53,
+            "macro_ovr_auc": 0.98784375
+          },
+          {
+            "fold": 2,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 55,
+            "macro_ovr_auc": 0.9940312500000001
+          },
+          {
+            "fold": 3,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 93,
+            "macro_ovr_auc": 0.9970625
+          },
+          {
+            "fold": 4,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 309,
+            "macro_ovr_auc": 0.9844687499999999
+          }
+        ],
+        "mean_activation": 0.4252566695213318,
+        "normalized_within_scatter": 0.763527512550354,
+        "normalized_between_scatter": 0.06700059771537781,
+        "normalized_fisher_ratio": 0.08775138631426746,
+        "geometry_scope": "descriptive whole-cache baseline; no learned transform and no significance claim"
+      },
+      "fc2": {
+        "balanced_accuracy": 0.929,
+        "macro_f1": 0.929207176647384,
+        "macro_ovr_auc": 0.9905312499999999,
+        "auc_aggregation": "equal mean of within-fold macro OVR AUC; no ranking of margins across different fitted models",
+        "pooled_margin_macro_ovr_auc_descriptive": 0.9893075,
+        "confusion_matrix": [
+          [
+            188,
+            2,
+            2,
+            6,
+            2
+          ],
+          [
+            2,
+            191,
+            5,
+            0,
+            2
+          ],
+          [
+            1,
+            7,
+            180,
+            12,
+            0
+          ],
+          [
+            0,
+            4,
+            6,
+            190,
+            0
+          ],
+          [
+            2,
+            7,
+            6,
+            5,
+            180
+          ]
+        ],
+        "fits": [
+          {
+            "fold": 0,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 74,
+            "macro_ovr_auc": 0.99496875
+          },
+          {
+            "fold": 1,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 69,
+            "macro_ovr_auc": 0.9943437500000002
+          },
+          {
+            "fold": 2,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 85,
+            "macro_ovr_auc": 0.99559375
+          },
+          {
+            "fold": 3,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 104,
+            "macro_ovr_auc": 0.9923124999999999
+          },
+          {
+            "fold": 4,
+            "train": 800,
+            "test": 200,
+            "test_per_class": [
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "n_iter": 62,
+            "macro_ovr_auc": 0.9754375
+          }
+        ],
+        "mean_activation": 0.2086613029241562,
+        "normalized_within_scatter": 0.7697165012359619,
+        "normalized_between_scatter": 0.09571155905723572,
+        "normalized_fisher_ratio": 0.1243465079721536,
+        "geometry_scope": "descriptive whole-cache baseline; no learned transform and no significance claim"
+      }
+    },
+    "source_sha256": "0509c398dc4cba49d5c36c59eb33db2b92b8604fdf0f11d342b4026182471e9b",
+    "models_sha256": "6982049798b3f7308655ea97cf86bdeb8e687893cbd3becb3d8cb6e77770045a"
+  }
+}

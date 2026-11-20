@@ -1,0 +1,315 @@
+<div id="priming-tensor-explorer">
+  <style>
+    #priming-tensor-explorer { color:var(--foreground); }
+    #priming-tensor-explorer .chart-host { width:100%; min-width:0; }
+    #priming-tensor-explorer .linked-panels { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    #priming-tensor-explorer .chart-svg { display:block; width:100%; overflow:visible; }
+    #priming-tensor-explorer .chart-svg text { fill:var(--foreground); font-size:12px; font-weight:400; }
+    #priming-tensor-explorer .chart-svg .axis-title { font-weight:500; }
+    #priming-tensor-explorer .chart-svg .domain, #priming-tensor-explorer .chart-svg .tick line { stroke:var(--border); }
+    #priming-tensor-explorer .legend { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    #priming-tensor-explorer .legend button { color:var(--foreground); background:transparent; border:0; padding:0; font:inherit; }
+    #priming-tensor-explorer .legend svg { display:inline-block; vertical-align:middle; }
+    #priming-tensor-explorer .selected-line { margin:12px 0; }
+    #priming-tensor-explorer .plot-tip { position:absolute; pointer-events:none; z-index:10; background:var(--popover); color:var(--popover-foreground); border:1px solid var(--border); padding:8px; max-width:320px; }
+    #priming-tensor-explorer .plot-tip[hidden] { display:none; }
+    #priming-tensor-explorer .scene-controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+    #priming-tensor-explorer .scene-controls label { flex:1; min-width:110px; }
+    #priming-tensor-explorer .metric-label { margin:12px 0 4px; }
+    #priming-tensor-explorer .readout-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    #priming-tensor-explorer .matrix-grid { display:grid; grid-template-columns:1fr; }
+    @media(max-width:700px) {
+      #priming-tensor-explorer .linked-panels, #priming-tensor-explorer .readout-grid { grid-template-columns:1fr; }
+    }
+  </style>
+  <h2>记忆内容效应 · 全因子联动</h2>
+  <div class="viz-controls">
+    <label class="form-label">表征指标<select class="form-select" id="pte-metric"></select></label>
+    <label class="form-label">矩阵颜色<select class="form-select" id="pte-scale"><option value="symlog">对称对数 · 保留正负与小变化</option><option value="linear">线性 · 同一指标统一范围</option></select></label>
+  </div>
+  <div class="chart-host" id="pte-color-key"></div>
+  <div class="text-small" id="pte-compact-key" hidden>I/T：ImageNet/THINGS · C/N：clean/noisy · H/P/J：Hebbian/PCoder/Joint</div>
+  <div class="matrix-grid" id="pte-matrix" aria-label="全因子矩阵：36个数据集、噪声、记忆载体、内容组合；4层和15个时间点"></div>
+  <div class="viz-controls">
+    <label class="form-label">选中组合<select class="form-select" id="pte-context"></select></label>
+    <label class="form-label">快照<select class="form-select" id="pte-window"><option value="point">单时间点</option><option value="early">early · t0–t4</option><option value="middle">middle · t5–t9</option><option value="late">late · t10–t14</option><option value="full">full · t0–t14</option></select></label>
+  </div>
+  <label class="form-label" for="pte-time">时间点 <span id="pte-time-label" class="tabular-nums">t0</span></label>
+  <input class="form-range" id="pte-time" type="range" min="0" max="14" value="0" step="1">
+  <div class="selected-line text-small tabular-nums" id="pte-selected" aria-live="polite"></div>
+  <div class="linked-panels">
+    <section>
+      <h3 id="pte-scene-title">3D · 层 × 内容</h3>
+      <div class="viz-controls">
+        <label class="form-label">标记<select class="form-select" id="pte-mark"><option value="bars">3D柱体与区间</option><option value="points">3D点与区间</option></select></label>
+        <label class="form-label">Z轴范围<select class="form-select" id="pte-zscope"><option value="local">当前快照 · 看局部细节</option><option value="global">全部组合 · 统一范围</option></select></label>
+      </div>
+      <div id="pte-scene" class="chart-host"></div>
+      <div class="scene-controls">
+        <label class="form-label">水平视角<input id="pte-yaw" class="form-range" type="range" min="25" max="55" value="40"></label>
+        <label class="form-label">俯仰<input id="pte-pitch" class="form-range" type="range" min="25" max="60" value="35"></label>
+      </div>
+      <div class="text-small">竖线：边际95%概念bootstrap区间</div>
+    </section>
+    <section>
+      <h3>四层时间轨迹</h3>
+      <div id="pte-layer-legend" class="legend" aria-label="聚焦层"></div>
+      <div id="pte-trajectory" class="chart-host"></div>
+      <div class="text-small">阴影：边际95%概念bootstrap区间</div>
+    </section>
+  </div>
+  <hr>
+  <div class="viz-controls">
+    <label class="form-label">FC2交叉验证读出<select id="pte-readout" class="form-select"><option value="t9">t9共同边界 · 时间泛化</option><option value="mvpa">逐时间点MVPA</option></select></label>
+  </div>
+  <div id="pte-content-legend" class="legend"></div>
+  <div class="readout-grid">
+    <div><h3>Accuracy · 内容−different category</h3><div id="pte-accuracy" class="chart-host"></div></div>
+    <div><h3>ROC-AUC · 内容−different category</h3><div id="pte-auc" class="chart-host"></div></div>
+  </div>
+  <div class="text-small" id="pte-readout-detail"></div>
+  <details>
+    <summary>当前3D快照的数值与区间</summary>
+    <div class="table-responsive"><table class="table table-sm"><thead><tr><th>层</th><th>内容−different</th><th class="text-end">估计值</th><th class="text-end">95%区间</th></tr></thead><tbody id="pte-values"></tbody></table></div>
+  </details>
+  <div class="text-small">基线：同载体、同噪声、同时间点的different category。颜色只编码正负与大小；区间为边际描述性区间。读出显示五折均值，不作跨载体检验。</div>
+  <div role="alert" id="pte-error" hidden></div>
+  <div class="plot-tip text-small" id="pte-tooltip" role="tooltip" hidden></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script>
+(() => {
+  const root=document.getElementById('priming-tensor-explorer');
+  const DATA=__PRIMING_TENSOR_DATA__;
+  const get=id=>document.getElementById('pte-'+id);
+  if(!window.d3){get('error').hidden=false;get('error').textContent='图表库未加载，请重新打开。';return;}
+  const L=['Conv4','Conv5','FC1','FC2'], I=['精确重复','同概念不同图','同大类不同概念'];
+  const ia=['精确','同概念','同大类'];
+  const ds=['ImageNet','THINGS'], ns=['clean','noisy'], cs=['Hebbian-only','PCoder-only','Joint'];
+  const dash=['','6,3','2,3','9,3,2,3'];
+  const contexts=[];
+  for(let d=0;d<2;d++)for(let n=0;n<2;n++)for(let c=0;c<3;c++)for(let i=0;i<3;i++)contexts.push({d,n,c,i});
+  const defaults={metric:2,row:0,layer:0,t:0,window:'point',scale:'symlog',mark:'bars',zscope:'local',yaw:40,pitch:35,readout:'t9',hiddenContents:[]};
+  let state={...defaults},ro=null,resizeTimer=null,themeKey='';
+  let pinned=false;
+  const tip=get('tooltip');root.style.position='relative';
+  const hostSaved=window.openai?.widgetState?.privateContent;
+  const finite=(n,min,max,fallback)=>Number.isFinite(+n)?Math.max(min,Math.min(max,+n)):fallback;
+  function validate(s){
+    return {...defaults,...s,metric:Math.round(finite(s?.metric,0,DATA.metrics.length-1,defaults.metric)),row:Math.round(finite(s?.row,0,35,0)),layer:Math.round(finite(s?.layer,0,3,0)),t:Math.round(finite(s?.t,0,14,0)),yaw:finite(s?.yaw,25,55,40),pitch:finite(s?.pitch,25,60,35),
+      window:['point','early','middle','late','full'].includes(s?.window)?s.window:'point',scale:s?.scale==='linear'?'linear':'symlog',mark:s?.mark==='points'?'points':'bars',zscope:s?.zscope==='global'?'global':'local',readout:s?.readout==='mvpa'?'mvpa':'t9',hiddenContents:Array.isArray(s?.hiddenContents)?s.hiddenContents.filter(x=>[0,1,2].includes(x)):[]};
+  }
+  if(hostSaved)state=validate(hostSaved);
+  function theme(token){
+    const span=document.createElement('span');span.style.color='var('+token+')';root.appendChild(span);const c=getComputedStyle(span).color;span.remove();return c;
+  }
+  const colors=()=>[1,2,3].map(i=>theme('--viz-series-'+i));
+  const metric=()=>DATA.metrics[state.metric];
+  function datum(row,layer,t,mi=state.metric){return DATA.rep[mi][row][layer][t];}
+  function snapshot(row,layer,mi=state.metric){return state.window==='point'?datum(row,layer,state.t,mi):DATA.windows[mi][row][layer][['early','middle','late','full'].indexOf(state.window)];}
+  const roundVal=x=>Math.abs(x)<1e-12?'0':Math.abs(x)>=1e4||Math.abs(x)<.001?d3.format('.2e')(x):d3.format('.4~f')(x);
+  const num=x=>Number.isFinite(x)?roundVal(x):'NA';
+  const unitVal=x=>num(x)+' '+metric().unit;
+  const rowName=r=>{const q=contexts[r];return ds[q.d]+' / '+ns[q.n]+' / '+cs[q.c]+' / '+I[q.i];};
+  const timeName=()=>state.window==='point'?'t'+state.t:{early:'early · t0–t4',middle:'middle · t5–t9',late:'late · t10–t14',full:'full · t0–t14'}[state.window];
+  function save(){
+    const q=contexts[state.row],v=snapshot(state.row,state.layer);
+    if(window.openai?.setWidgetState)window.openai.setWidgetState({modelContent:{dataset:ds[q.d],noise:ns[q.n],carrier:cs[q.c],content:I[q.i],layer:L[state.layer],time:timeName(),metric:metric().name,estimate:v[0],marginal_95_interval:[v[1],v[2]]},privateContent:state}).catch(()=>{});
+  }
+  function showTip(event,html){
+    if(pinned)return;
+    tip.innerHTML=html;tip.hidden=false;
+    const r=root.getBoundingClientRect();const w=tip.getBoundingClientRect().width;
+    tip.style.left=Math.max(0,Math.min(r.width-w-4,event.clientX-r.left+12))+'px';
+    tip.style.top=(event.clientY-r.top+14)+'px';
+  }
+  function hideTip(){if(!pinned)tip.hidden=true;}
+  function selectionText(){
+    const v=snapshot(state.row,state.layer);get('selected').textContent=rowName(state.row)+' · '+L[state.layer]+' · '+timeName()+' · '+metric().name+' '+unitVal(v[0])+'  [ '+num(v[1])+', '+num(v[2])+' ]';
+  }
+  function change(patch,remember=true){state=validate({...state,...patch});pinned=false;tip.hidden=true;syncControls();drawAll();if(remember)save();}
+  function syncControls(){
+    for(const [id,key] of [['metric','metric'],['context','row'],['window','window'],['time','t'],['scale','scale'],['mark','mark'],['zscope','zscope'],['yaw','yaw'],['pitch','pitch'],['readout','readout']])get(id).value=state[key];
+    get('time').disabled=state.window!=='point';get('time-label').textContent='t'+state.t;selectionText();
+  }
+  get('metric').innerHTML=DATA.metrics.map((m,i)=>'<option value="'+i+'">'+m.name+' ('+m.unit+')</option>').join('');
+  get('context').innerHTML=contexts.map((q,i)=>'<option value="'+i+'">'+rowName(i)+'</option>').join('');
+  for(const [id,key] of [['metric','metric'],['context','row'],['window','window'],['scale','scale'],['mark','mark'],['zscope','zscope'],['readout','readout']])get(id).addEventListener('change',e=>change({[key]:e.target.value}));
+  get('time').addEventListener('input',e=>change({t:+e.target.value}));
+  for(const id of ['yaw','pitch'])get(id).addEventListener('input',e=>{state[id]=+e.target.value;drawScene();save();});
+  function makeSVG(host,height,label){
+    const w=host.getBoundingClientRect().width;
+    const svg=d3.select(host).selectAll('svg').data([null]).join('svg').attr('class','chart-svg').attr('viewBox',`0 0 ${w} ${height}`).attr('height',height).attr('role','img').attr('aria-label',label);
+    svg.selectAll('*').remove();svg.append('title').text(label);return {svg,w,h:height};
+  }
+  function colorInfo(){
+    const a=DATA.rep[state.metric].flat(2).map(v=>v[0]).filter(Number.isFinite);
+    const max=d3.max(a,x=>Math.abs(x))||1;
+    const c=d3.quantile(a.map(Math.abs).filter(x=>x>1e-12).sort(d3.ascending),.5)||max/100;
+    const scale=state.scale==='linear'?d3.scaleLinear().domain([-max,max]).range([-1,1]):d3.scaleSymlog().constant(c).domain([-max,max]).range([-1,1]);
+    const bg=theme('--background'),neg=theme('--blue'),pos=theme('--orange');
+    return {max,c,scale,fill:v=>!Number.isFinite(v)?theme('--muted'):v<0?d3.interpolateRgb(bg,neg)(Math.abs(scale(v))):d3.interpolateRgb(bg,pos)(Math.abs(scale(v)))};
+  }
+  function drawColorKey(ci){
+    const {svg,w}=makeSVG(get('color-key'),54,'颜色标尺；负值与正值；全矩阵共用范围');
+    const left=56,right=w-56,ww=right-left;
+    for(let j=0;j<140;j++){
+      const t=j/139,v=ci.scale.invert(-1+2*t);svg.append('rect').attr('x',left+t*ww).attr('y',4).attr('width',ww/139+1).attr('height',10).attr('fill',ci.fill(v));
+    }
+    const ticks=state.scale==='symlog'?[-ci.max,-ci.c,0,ci.c,ci.max]:[-ci.max,0,ci.max];
+    const positions=[];
+    ticks.forEach(v=>{const x=left+(ci.scale(v)+1)/2*ww;const s=num(v);if(positions.some(p=>Math.abs(p-x)<54))return;positions.push(x);svg.append('text').attr('x',x).attr('y',32).attr('text-anchor','middle').text(s);});
+    svg.append('text').attr('x',w/2).attr('y',50).attr('text-anchor','middle').text(metric().name+' · '+metric().unit+' · '+(state.scale==='symlog'?'对称对数颜色':'线性颜色'));
+  }
+  function drawMatrix(){
+    const ci=colorInfo();drawColorKey(ci);
+    const width=get('matrix').getBoundingClientRect().width,compact=width<620;
+    get('compact-key').hidden=!compact;
+    const layerGroups=compact?[[0],[1],[2],[3]]:[[0,1,2,3]];
+    const div=d3.select(get('matrix')).selectAll('div.matrix-part').data(layerGroups).join('div').attr('class','matrix-part');
+    div.each(function(layerGroup,part){
+      const h=710,{svg,w}=makeSVG(this,h,'表征效应矩阵：行是数据集×噪声×载体×内容，列是层×时间。'+metric().name);
+      const left=compact?134:218,right=10,top=54,bottom=40,rowH=(h-top-bottom)/36;
+      const colW=(w-left-right)/(layerGroup.length*15);const frame={x:left,y:top,width:w-left-right,height:36*rowH};
+      svg.append('rect').attr('data-chart-frame','').attr('x',frame.x).attr('y',frame.y).attr('width',frame.width).attr('height',frame.height).attr('fill','none').attr('stroke','var(--border)');
+      for(let r=0;r<36;r++)for(let g=0;g<layerGroup.length;g++)for(let t=0;t<15;t++){
+        const l=layerGroup[g],v=datum(r,l,t),x=left+(g*15+t)*colW,y=top+r*rowH;
+        svg.append('rect').attr('x',x+.3).attr('y',y+.25).attr('width',Math.max(0,colW-.6)).attr('height',rowH-.5).attr('fill',ci.fill(v[0]));
+      }
+      for(let r=0;r<36;r++){
+        const q=contexts[r];
+        const label=compact?`${q.d?'T':'I'}·${q.n?'N':'C'} ${['H','P','J'][q.c]} ${ia[q.i]}`:`${ds[q.d]}·${ns[q.n]}  ${['Hebb','PCoder','Joint'][q.c]}  ${ia[q.i]}`;
+        svg.append('text').attr('x',left-7).attr('y',top+(r+.5)*rowH+4).attr('text-anchor','end').text(label);
+        if(r%9===0&&r>0)svg.append('line').attr('x1',3).attr('x2',w-right).attr('y1',top+r*rowH).attr('y2',top+r*rowH).attr('stroke','var(--border)');
+      }
+      layerGroup.forEach((l,g)=>{
+        const x=left+g*15*colW;
+        svg.append('text').attr('x',x+7.5*colW).attr('y',18).attr('text-anchor','middle').text(L[l]);
+        [0,7,14].forEach(t=>svg.append('text').attr('x',t===0?x+2:t===14?x+15*colW-2:x+7.5*colW).attr('y',39).attr('text-anchor',t===0?'start':t===14?'end':'middle').text('t'+t));
+        if(g)svg.append('line').attr('x1',x).attr('x2',x).attr('y1',top).attr('y2',h-bottom).attr('stroke','var(--foreground)').attr('opacity',.5);
+        if(state.window!=='point'){
+          const [a,b]={early:[0,4],middle:[5,9],late:[10,14],full:[0,14]}[state.window];
+          svg.append('rect').attr('x',x+a*colW).attr('y',top+state.row*rowH).attr('width',(b-a+1)*colW).attr('height',rowH).attr('fill','none').attr('stroke','var(--foreground)').attr('stroke-width',1.5);
+        }else{
+          svg.append('rect').attr('x',x+state.t*colW).attr('y',top+state.row*rowH).attr('width',colW).attr('height',rowH).attr('fill','none').attr('stroke','var(--foreground)').attr('stroke-width',l===state.layer?2:1);
+        }
+      });
+      svg.append('text').attr('class','axis-title').attr('data-axis','x').attr('x',left+frame.width/2).attr('y',h-12).attr('text-anchor','middle').text('层 × target时间点 t0–t14');
+      svg.append('text').attr('class','axis-title').attr('data-axis','y').attr('x',3).attr('y',18).text(compact?'I=ImageNet T=THINGS':'数据集 · 噪声 · 载体 · 内容');
+      const overlay=svg.append('rect').attr('x',left).attr('y',top).attr('width',frame.width).attr('height',frame.height).attr('fill','transparent').attr('data-chart-hit','matrix');
+      function hit(event){const [mx,my]=d3.pointer(event,svg.node());const r=Math.max(0,Math.min(35,Math.floor((my-top)/rowH)));const c=Math.max(0,Math.min(layerGroup.length*15-1,Math.floor((mx-left)/colW)));return {r,l:layerGroup[Math.floor(c/15)],t:c%15};}
+      overlay.on('pointermove',event=>{const p=hit(event),v=datum(p.r,p.l,p.t);showTip(event,`${rowName(p.r)}<br>${L[p.l]} · t${p.t}<br>${metric().name}: ${unitVal(v[0])}<br>95%区间 [${num(v[1])}, ${num(v[2])}]`);}).on('pointerleave',hideTip).on('click',event=>{const p=hit(event);change({row:p.r,layer:p.l,t:p.t,window:'point'});});
+    });
+  }
+  function makeLineChart(host,series,ylabel,height=340){
+    const previousPaths=new Map([...host.querySelectorAll('path[data-series-line]')].map(n=>[n.getAttribute('data-series-line'),n.getAttribute('d')]));
+    const {svg,w,h}=makeSVG(host,height,ylabel+'，横轴target时间点t0–t14');
+    const m={left:78,right:20,top:18,bottom:56};const fw=Math.max(20,w-m.left-m.right),fh=h-m.top-m.bottom;
+    const all=series.flatMap(s=>s.values.flatMap(v=>[v.y,v.lo??v.y,v.hi??v.y])).filter(Number.isFinite);
+    let [lo,hi]=d3.extent([...all,0]);if(hi===lo){lo-=1;hi+=1;}const pad=(hi-lo)*.08;
+    const y=d3.scaleLinear().domain([lo-pad,hi+pad]).range([m.top+fh,m.top]);const x=d3.scaleLinear().domain([0,14]).range([m.left+3,m.left+fw-3]);
+    const clipId='pte-clip-'+host.id;
+    svg.append('defs').append('clipPath').attr('id',clipId).append('rect').attr('x',m.left).attr('y',m.top).attr('width',fw).attr('height',fh);
+    svg.append('rect').attr('data-chart-frame','').attr('x',m.left).attr('y',m.top).attr('width',fw).attr('height',fh).attr('fill','none').attr('stroke','var(--border)');
+    svg.append('g').attr('transform',`translate(0,${m.top+fh})`).call(d3.axisBottom(x).tickValues(w<400?[0,5,9,14]:[0,2,4,6,8,10,12,14]).tickSizeOuter(0));
+    svg.append('g').attr('transform',`translate(${m.left},0)`).call(d3.axisLeft(y).ticks(4).tickFormat(v=>num(v)).tickSizeOuter(0));
+    svg.append('text').attr('class','axis-title').attr('data-axis','x').attr('x',m.left+fw/2).attr('y',h-10).attr('text-anchor','middle').text('Target时间点');
+    svg.append('text').attr('class','axis-title').attr('data-axis','y').attr('transform',`translate(17,${m.top+fh/2}) rotate(-90)`).attr('text-anchor','middle').text(ylabel);
+    const plot=svg.append('g').attr('clip-path',`url(#${clipId})`);
+    plot.append('line').attr('x1',m.left).attr('x2',m.left+fw).attr('y1',y(0)).attr('y2',y(0)).attr('stroke','var(--foreground)').attr('opacity',.6).attr('stroke-width',1);
+    const windowRange=state.window==='point'?[state.t,state.t]:{early:[0,4],middle:[5,9],late:[10,14],full:[0,14]}[state.window];
+    if(windowRange[0]!==windowRange[1])plot.append('rect').attr('x',x(windowRange[0])).attr('y',m.top).attr('width',x(windowRange[1])-x(windowRange[0])).attr('height',fh).attr('fill','var(--muted)').attr('opacity',.4);
+    else plot.append('line').attr('x1',x(state.t)).attr('x2',x(state.t)).attr('y1',m.top).attr('y2',m.top+fh).attr('stroke','var(--border)').attr('stroke-dasharray','3,3');
+    const line=d3.line().defined(d=>Number.isFinite(d.y)).x(d=>x(d.x)).y(d=>y(d.y));
+    const area=d3.area().defined(d=>Number.isFinite(d.lo)&&Number.isFinite(d.hi)).x(d=>x(d.x)).y0(d=>y(d.lo)).y1(d=>y(d.hi));
+    series.forEach(s=>{
+      if(s.values.some(v=>v.lo!==undefined))plot.append('path').datum(s.values).attr('d',area).attr('fill',s.color).attr('opacity',s.active?.12:.045);
+      const target=line(s.values),old=previousPaths.get(s.name),path=plot.append('path').datum(s.values).attr('data-series-line',s.name).attr('d',old||target).attr('fill','none').attr('stroke',s.color).attr('stroke-width',s.active?2.3:1.5).attr('stroke-dasharray',s.dash||'');
+      if(old&&!matchMedia('(prefers-reduced-motion: reduce)').matches)path.transition().duration(180).attr('d',target);else path.attr('d',target);
+    });
+    const guide=plot.append('line').attr('data-chart-hover-guide','').attr('y1',m.top).attr('y2',m.top+fh).attr('stroke','var(--foreground)').attr('stroke-width',1).attr('opacity',0);
+    const markers=series.map(s=>plot.append('circle').attr('data-chart-hover-marker','').attr('r',3).attr('fill',s.color).attr('opacity',0));
+    function interp(values,at,key){const near=d3.bisector(d=>d.x).center(values,at);let a=Math.max(0,near-1),b=Math.min(values.length-1,near+1);if(values[near].x<=at)a=near;else b=near;const p=values[a],q=values[b];if(a===b)return p[key];return p[key]+(q[key]-p[key])*(at-p.x)/(q.x-p.x);}
+    const overlay=svg.append('rect').attr('data-chart-hit','').attr('data-chart-hover-overlay','cross-series').attr('x',m.left).attr('y',m.top).attr('width',fw).attr('height',fh).attr('fill','transparent');
+    function hover(event,force=false){
+      if(pinned&&!force)return;
+      const [mx]=d3.pointer(event,svg.node()),at=Math.max(0,Math.min(14,x.invert(mx)));
+      guide.attr('x1',x(at)).attr('x2',x(at)).attr('opacity',.55);
+      const lines=series.map((s,i)=>{const value=interp(s.values,at,'y');markers[i].attr('cx',x(at)).attr('cy',y(value)).attr('opacity',1);return `${s.name}: ${num(value)}${s.unit?' '+s.unit:''}`;});
+      const old=pinned;pinned=false;showTip(event,`t=${d3.format('.2f')(at)}<br>`+lines.join('<br>'));pinned=old;
+    }
+    overlay.on('pointermove',event=>hover(event)).on('pointerleave',()=>{if(!pinned){guide.attr('opacity',0);markers.forEach(m=>m.attr('opacity',0));hideTip();}}).on('click',event=>{const was=pinned;pinned=false;hover(event,true);pinned=!was;if(!pinned)hideTip();});
+    // Optional crowded ticks are removed after measuring at the actual rendered size.
+    const texts=svg.selectAll('.tick text').nodes();let previous=null;
+    texts.forEach(n=>{const b=n.getBoundingClientRect();if(previous&&b.top===previous.top&&b.left<previous.right+4)n.style.visibility='hidden';else previous=b;});
+  }
+  function drawTrajectory(){
+    const col=colors()[contexts[state.row].i];
+    const legend=d3.select(get('layer-legend')).selectAll('button').data(L).join('button').attr('type','button').attr('aria-pressed',(d,i)=>i===state.layer?'true':'false').attr('class','cursor-interaction');
+    legend.html((d,i)=>`<svg width="26" height="12" aria-hidden="true"><line x1="0" x2="24" y1="6" y2="6" stroke="currentColor" stroke-width="${i===state.layer?2.5:1.4}" stroke-dasharray="${dash[i]}"></line></svg> ${d}`).on('click',(e,d)=>change({layer:L.indexOf(d)}));
+    const series=L.map((name,l)=>({name,color:col,dash:dash[l],active:l===state.layer,unit:metric().unit,values:Array.from({length:15},(_,t)=>{const v=datum(state.row,l,t);return {x:t,y:v[0],lo:v[1],hi:v[2]};})}));
+    makeLineChart(get('trajectory'),series,metric().short+' ('+metric().unit+')',406);
+  }
+  function sceneData(){
+    const q=contexts[state.row],base=state.row-q.i,rows=[];
+    for(let l=0;l<4;l++)for(let i=0;i<3;i++)rows.push({l,i,row:base+i,v:snapshot(base+i,l)});
+    return rows;
+  }
+  function drawScene(){
+    const items=sceneData(),col=colors(),{svg,w,h}=makeSVG(get('scene'),360,'可旋转3D层×内容快照，柱高为'+metric().name+'，含边际95%区间');
+    get('scene-title').textContent='3D · 层 × 内容 · '+timeName();
+    const vals=(state.zscope==='global'?[...DATA.rep[state.metric].flat(3),...DATA.windows[state.metric].flat(3)]:items.flatMap(d=>d.v)).filter(Number.isFinite);let [zl,zh]=d3.extent([...vals,0]);if(zl===zh){zl-=1;zh+=1;}const pad=(zh-zl)*.1;zl-=pad;zh+=pad;
+    const z=d3.scaleLinear().domain([zl,zh]).range([-1.2,1.2]);
+    const yaw=state.yaw*Math.PI/180,pitch=state.pitch*Math.PI/180;
+    function proj(x,y,v){const xx=x*Math.cos(yaw)-y*Math.sin(yaw),dd=x*Math.sin(yaw)+y*Math.cos(yaw);const zz=z(v);return [xx,dd*Math.sin(pitch)-zz*Math.cos(pitch),dd*Math.cos(pitch)+zz*Math.sin(pitch)];}
+    const xb=l=>l-1.5,yb=i=>i-1;
+    const points=[];const faces=[];
+    items.forEach(d=>{
+      const x=xb(d.l),y=yb(d.i),a=.27;
+      const p=[[x-a,y-a,0],[x+a,y-a,0],[x+a,y+a,0],[x-a,y+a,0],[x-a,y-a,d.v[0]],[x+a,y-a,d.v[0]],[x+a,y+a,d.v[0]],[x-a,y+a,d.v[0]]].map(p=>proj(...p));
+      points.push(...p,proj(x,y,d.v[1]),proj(x,y,d.v[2]));
+      [[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7],[4,5,6,7]].forEach((ids,fi)=>faces.push({p:ids.map(i=>p[i]),item:d,face:fi,depth:d3.mean(ids,i=>p[i][2])}));
+    });
+    const corners=[[ -2,-1.5,0],[2,-1.5,0],[2,1.5,0],[-2,1.5,0]].map(p=>proj(...p));
+    const zticks=d3.ticks(zl,zh,4);const axisPts=[...corners,...zticks.map(v=>proj(-2,-1.5,v)),...L.map((l,i)=>proj(xb(i),-1.8,0)),...I.map((x,i)=>proj(-2.3,yb(i),0))];
+    const all=[...points,...axisPts],ex=d3.extent(all,p=>p[0]),ey=d3.extent(all,p=>p[1]);
+    const k=Math.min((w-126)/(ex[1]-ex[0]),(h-100)/(ey[1]-ey[0]));const cx=w/2,cy=(h-30)/2;
+    const screen=p=>[cx+(p[0]-(ex[0]+ex[1])/2)*k,cy+(p[1]-(ey[0]+ey[1])/2)*k];
+    const path=p=>'M'+p.map(v=>screen(v).join(',')).join('L')+'Z';
+    svg.append('path').attr('d',path(corners)).attr('fill','var(--muted)').attr('fill-opacity',.35).attr('stroke','var(--border)').attr('stroke-width',1);
+    if(state.mark==='bars'){
+      faces.sort((a,b)=>a.depth-b.depth).forEach(f=>svg.append('path').attr('d',path(f.p)).attr('fill',col[f.item.i]).attr('opacity',f.face===4?.92:.48).attr('data-chart-hit','bar').on('pointermove',event=>{const d=f.item;showTip(event,`${L[d.l]} · ${I[d.i]} · ${timeName()}<br>${unitVal(d.v[0])}<br>95%区间 [${num(d.v[1])}, ${num(d.v[2])}]`);}).on('pointerleave',hideTip).on('click',()=>change({row:f.item.row,layer:f.item.l})));
+    }
+    items.forEach(d=>{
+      const p=screen(proj(xb(d.l),yb(d.i),d.v[0])),a=screen(proj(xb(d.l),yb(d.i),d.v[1])),b=screen(proj(xb(d.l),yb(d.i),d.v[2]));
+      svg.append('line').attr('x1',a[0]).attr('y1',a[1]).attr('x2',b[0]).attr('y2',b[1]).attr('stroke','var(--foreground)').attr('opacity',.7).attr('stroke-width',1);
+      [a,b].forEach(p=>svg.append('line').attr('x1',p[0]-3).attr('x2',p[0]+3).attr('y1',p[1]).attr('y2',p[1]).attr('stroke','var(--foreground)').attr('opacity',.7));
+      svg.append('circle').attr('cx',p[0]).attr('cy',p[1]).attr('r',d.row===state.row&&d.l===state.layer?4.5:3).attr('fill',col[d.i]);
+    });
+    L.forEach((name,l)=>{const p=screen(proj(xb(l),-1.8,0));svg.append('text').attr('x',p[0]).attr('y',p[1]+18).attr('text-anchor','middle').text(name);});
+    ia.forEach((name,i)=>{const p=screen(proj(-2.3,yb(i),0));svg.append('text').attr('x',p[0]-6).attr('y',p[1]+4).attr('text-anchor','end').text(name);});
+    const zstart=screen(proj(-2,-1.5,zl)),zend=screen(proj(-2,-1.5,zh));
+    svg.append('line').attr('x1',zstart[0]).attr('x2',zend[0]).attr('y1',zstart[1]).attr('y2',zend[1]).attr('stroke','var(--border)');
+    zticks.forEach(v=>{const p=screen(proj(-2,-1.5,v));svg.append('text').attr('x',p[0]-8).attr('y',p[1]+4).attr('text-anchor','end').text(num(v));});
+    svg.append('text').attr('class','axis-title').attr('data-axis','x').attr('x',w-10).attr('y',h-8).attr('text-anchor','end').text('层 × 内容');
+    svg.append('text').attr('class','axis-title').attr('data-axis','y').attr('x',5).attr('y',16).text(metric().short+' ('+metric().unit+')');
+    const tbody=get('values');tbody.innerHTML=items.map(d=>`<tr><th>${L[d.l]}</th><td>${I[d.i]}</td><td class="text-end tabular-nums">${num(d.v[0])}</td><td class="text-end tabular-nums">[${num(d.v[1])}, ${num(d.v[2])}]</td></tr>`).join('');
+  }
+  function drawReadout(){
+    const q=contexts[state.row],ci=(q.d*2+q.n)*3+q.c,kind=state.readout==='t9'?0:1,col=colors();
+    const legend=d3.select(get('content-legend')).selectAll('button').data(I).join('button').attr('type','button').attr('class','cursor-interaction').attr('aria-pressed',(d,i)=>state.hiddenContents.includes(i)?'false':'true');
+    legend.html((d,i)=>`<svg width="20" height="12" aria-hidden="true"><line x1="0" x2="18" y1="6" y2="6" stroke="${col[i]}" stroke-width="2" stroke-dasharray="${['','5,2','2,2'][i]}"></line></svg> ${d}`).on('click',(e,d)=>{const i=I.indexOf(d),s=new Set(state.hiddenContents);s.has(i)?s.delete(i):s.add(i);if(s.size===3)s.delete(i);change({hiddenContents:[...s]});});
+    const makeSeries=field=>I.flatMap((name,i)=>state.hiddenContents.includes(i)?[]:[{name,color:col[i],dash:['','5,2','2,2'][i],active:q.i===i,unit:field===0?'pp':'ΔAUC',values:DATA.readout[kind][ci][i].map((v,t)=>({x:t,y:v[field]}))}]);
+    makeLineChart(get('accuracy'),makeSeries(0),'ΔAccuracy (pp)',300);makeLineChart(get('auc'),makeSeries(2),'ΔROC-AUC (0–1)',300);
+    let v;
+    if(state.window==='point')v=DATA.readout[kind][ci][q.i][state.t];else v=DATA.readoutWindows[kind][ci][q.i][['early','middle','late','full'].indexOf(state.window)];
+    get('readout-detail').textContent=ds[q.d]+' · '+ns[q.n]+' · '+cs[q.c]+' · '+I[q.i]+' · '+timeName()+'：ΔAccuracy '+num(v[0])+' pp（fold SD '+num(v[1])+'）；ΔROC-AUC '+num(v[2])+'（fold SD '+num(v[3])+'）。';
+  }
+  function drawAll(){drawMatrix();drawScene();drawTrajectory();drawReadout();selectionText();}
+  syncControls();drawAll();
+  ro=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(drawAll,100);});ro.observe(root);
+  window.addEventListener('openai:set_globals',e=>{const s=e.detail?.globals?.widgetState?.privateContent;if(s){state=validate(s);syncControls();drawAll();}});
+  const mo=new MutationObserver(()=>{const key=[theme('--background'),theme('--foreground'),...colors()].join();if(key!==themeKey){themeKey=key;drawAll();}});themeKey=[theme('--background'),theme('--foreground'),...colors()].join();mo.observe(document.documentElement,{attributes:true,attributeFilter:['class','style','data-theme']});
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{themeKey=[theme('--background'),theme('--foreground'),...colors()].join();drawAll();});
+})();
+</script>

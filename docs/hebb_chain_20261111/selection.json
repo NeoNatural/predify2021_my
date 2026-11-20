@@ -1,0 +1,30 @@
+{
+  "suppression": {
+    "id": "a00",
+    "lam": [
+      0.015,
+      0.0075,
+      0.015,
+      0.015
+    ],
+    "epsilon": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "gain": "gain4",
+  "gain_epsilon": [
+    0.005,
+    0,
+    0,
+    0
+  ],
+  "feasible": true,
+  "consistent_training_rs": true,
+  "calibration": {
+    "imagenet": "f81fae5c7393312322073b1e104a5873c863435c6ce0647c2f6092e18559e34e",
+    "things": "bc15a22688e9df1016edefd220992f5226c5f6f2fcf264c573bf970f04ab119b"
+  }
+}

@@ -20,9 +20,20 @@ def set_hyperparams(net,hps):
         setattr(net,f"erm{n}",torch.tensor(hps[n-1]['erm'],dtype=torch.float64))
 
 
-def get_model(name,pretrained=False,deep_graph=False,timesteps=4,hyperparams=None):
+def get_model(
+    name,
+    pretrained=False,
+    deep_graph=False,
+    timesteps=4,
+    hyperparams=None,
+    weight_dir=None,
+    map_location=None,
+    random_init=None,
+):
 
     if name in ['pvgg','PVGG']:
+
+        model_random_init = if_random if random_init is None else random_init
 
         import torchvision
         from .pvgg16_shared import PVGG16SeparateHP , DeepPVGG16SeparateHP    
@@ -31,18 +42,21 @@ def get_model(name,pretrained=False,deep_graph=False,timesteps=4,hyperparams=Non
         vgg = vgg16(weights=weights)
 
         if deep_graph == True:
-            pvgg16 = DeepPVGG16SeparateHP(backbone=vgg,number_of_pcoders=5,number_of_timesteps=timesteps ,build_graph=True, random_init=if_random, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
+            pvgg16 = DeepPVGG16SeparateHP(backbone=vgg,number_of_pcoders=5,number_of_timesteps=timesteps ,build_graph=True, random_init=model_random_init, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
         else:
-            pvgg16 = PVGG16SeparateHP(backbone=vgg , build_graph=False, random_init=if_random, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
+            pvgg16 = PVGG16SeparateHP(backbone=vgg , build_graph=False, random_init=model_random_init, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
 
 
         if pretrained == True:
             # backward_weight_dir = './'
-            backward_weight_dir = Path(__file__).resolve().parent
+            backward_weight_dir = Path(weight_dir) if weight_dir is not None else Path(__file__).resolve().parent
             print (f'Loading weights from {backward_weight_dir}')
             for n in range(pvgg16.number_of_pcoders):
                 # print('n: ',n)
-                checkpoint = torch.load(os.path.join(backward_weight_dir, f'pvgg16_imagenet_pretrained_pc{n+1}_pmodule.pth'))
+                checkpoint = torch.load(
+                    os.path.join(backward_weight_dir, f'pvgg16_imagenet_pretrained_pc{n+1}_pmodule.pth'),
+                    map_location=map_location,
+                )
                 # print(checkpoint.keys())
                 if n==0:
                     getattr(pvgg16,f"pcoder{n+1}").pmodule.load_state_dict({k.replace("0.", ""): v for k, v in checkpoint.items()})
@@ -56,6 +70,8 @@ def get_model(name,pretrained=False,deep_graph=False,timesteps=4,hyperparams=Non
 
     elif name in ['peffb0','PEfficientNetB0']:
 
+        model_random_init = False if random_init is None else random_init
+
 
         import timm
         from timm.models import efficientnet_b0
@@ -64,9 +80,9 @@ def get_model(name,pretrained=False,deep_graph=False,timesteps=4,hyperparams=Non
         net = efficientnet_b0(pretrained=True)
 
         if deep_graph == True:
-            pnet = DeepPEfficientNetB0_SeparateHP(backbone=net,number_of_pcoders=8,number_of_timesteps=timesteps ,build_graph=True, random_init=False, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
+            pnet = DeepPEfficientNetB0_SeparateHP(backbone=net,number_of_pcoders=8,number_of_timesteps=timesteps ,build_graph=True, random_init=model_random_init, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
         else : 
-            pnet = PEfficientNetB0_SeparateHP(backbone=net , build_graph=False, random_init=False, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
+            pnet = PEfficientNetB0_SeparateHP(backbone=net , build_graph=False, random_init=model_random_init, ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.01)
 
 
         if pretrained == True:

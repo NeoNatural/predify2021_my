@@ -1,0 +1,46 @@
+{
+  "imagenet": [
+    {
+      "q_rms": 0.00832842756062746,
+      "kappa0": 0.03899649530649185,
+      "targets": 256,
+      "histories": [
+        "exact",
+        "different"
+      ],
+      "positive_kappa_count": 512
+    },
+    {
+      "q_rms": 0.010962293483316898,
+      "kappa0": 0.05446942523121834,
+      "targets": 256,
+      "histories": [
+        "exact",
+        "different"
+      ],
+      "positive_kappa_count": 512
+    }
+  ],
+  "things": [
+    {
+      "q_rms": 0.006265189498662949,
+      "kappa0": 0.038896795362234116,
+      "targets": 320,
+      "histories": [
+        "exact",
+        "different"
+      ],
+      "positive_kappa_count": 640
+    },
+    {
+      "q_rms": 0.008543253876268864,
+      "kappa0": 0.05439102649688721,
+      "targets": 320,
+      "histories": [
+        "exact",
+        "different"
+      ],
+      "positive_kappa_count": 640
+    }
+  ]
+}

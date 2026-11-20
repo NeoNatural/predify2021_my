@@ -1,0 +1,5 @@
+{
+  "conditions": [],
+  "selection_sha256": "20485f819b65597202fe4fcf8a268cb36ca94e4ea77c94646b5f1e6ab149f20f",
+  "criterion": "positive shared-query validation point estimate and positive lower 95% bound on fresh native AUC"
+}

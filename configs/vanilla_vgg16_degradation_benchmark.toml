@@ -1,0 +1,46 @@
+[project]
+root = ".."
+
+[paths]
+imagenet_root = "__SET_IMAGENET_ROOT__"
+sample_file = "Hebbian-CNN/Log/DatasetSample/N_Back-1.pckl"
+output_dir = "Hebbian-CNN/Log/vanilla_vgg16_v1"
+pcoder_weight_dir = "predify2021/model_factory"
+fc_checkpoint = ""
+
+[runtime]
+device = "auto"
+seed = 114514
+max_time_steps = 10
+reduced_time_steps = 2
+max_samples = 2000
+
+[model]
+name = "vgg16"
+pretrained_pcoders = false
+random_init = false
+fc_weight_source = "torchvision"
+fc_hebb_compute_enabled = false
+original_mode = true
+
+[stimulus]
+prime_layout = "parafoveal_half_field"
+degradation_seed = 0
+fractal_octaves = 3
+
+[[stimulus.degradations]]
+mode = "none"
+levels = [0.0]
+[[stimulus.degradations]]
+mode = "predify_noise"
+levels = [0.25, 0.5, 0.75, 1.0, 2.0]
+[[stimulus.degradations]]
+mode = "fractal_occlusion"
+levels = [0.1, 0.2, 0.3, 0.4, 0.5]
+
+[experiment]
+task_name = "N_Back-"
+gap = 1
+run_priming = true
+run_nonpriming = true
+representation_class_items = 400

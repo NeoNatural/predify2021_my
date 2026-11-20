@@ -1,0 +1,82 @@
+[project]
+root = ".."
+
+[paths]
+imagenet_root = "__SET_IMAGENET_ROOT__"
+sample_file = "Hebbian-CNN/Log/DatasetSample/N_Back-1.pckl"
+output_dir = "Hebbian-CNN/Log/paper_parafoveal_v1/recovery/calibration/feedforward300"
+pcoder_weight_dir = "predify2021/model_factory"
+fc_checkpoint = ""
+
+[runtime]
+device = "auto"
+seed = 114514
+max_time_steps = 10
+reduced_time_steps = 2
+max_samples = 300
+
+[model]
+name = "pvgg"
+pretrained_pcoders = true
+random_init = false
+fc_weight_source = "torchvision"
+fc_hebb_compute_enabled = true
+original_mode = true
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[stimulus]
+prime_layout = "paper_parafoveal"
+degradation_seed = 0
+fractal_octaves = 3
+
+[[stimulus.degradations]]
+mode = "predify_noise"
+levels = [0.5]
+[[stimulus.degradations]]
+mode = "fractal_occlusion"
+levels = [0.3]
+
+[experiment]
+task_name = "paper-feedforward-calibration-"
+gap = 1
+run_priming = true
+run_nonpriming = false
+representation_class_items = 600
+
+[paper]
+enabled = true
+protocol = "target_only"
+conditions = ["no_prime"]
+prime_identities = ["same"]
+memory_carriers = ["none"]
+targets_per_category = 60
+target_offset = 0
+preview_time_steps = 2
+target_time_steps = 1
+object_scale = 0.15
+horizontal_offset = 0.175
+background_value = 0.5
+clean_reference_enabled = true
+diagnostic_tensor_samples = 0
+decoder_folds = 5
+decoder_seed = 114514

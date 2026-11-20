@@ -1,0 +1,36 @@
+{
+  "epsilons": [
+    0,
+    0.005
+  ],
+  "steps": 5,
+  "lam": 0.03,
+  "gain": "p*[1+epsilon*(tanh(q/c)-sum(p*tanh(q/c))/sum(p))], zero group gives zero",
+  "gain_phase": "target only, after five original suppression-only steps",
+  "gain_scale": "active-unit RMS of q on training pool endpoints, both histories, every target network step for Conv4",
+  "preview": "same old suppression-only path, two writes, zero at reset, frozen target",
+  "fc": "original FC1 -> linear+bias+ReLU -> FC2, existing frozen SAE and kappa calibration",
+  "conv": "direct native-channel rep4 graph, existing rep4 scale and kappa calibration",
+  "conv_windows": {
+    "early": [
+      0,
+      5
+    ],
+    "middle": [
+      5,
+      10
+    ],
+    "late": [
+      10,
+      15
+    ]
+  },
+  "shared_svm": "one model per dataset/layer, equal training history and epsilon weights, no preview included",
+  "bootstrap": "4000 paired concept-block draws, stratified by category; percentile 95% interval",
+  "local_tolerances": {
+    "relative_fp32": 9.5367431640625e-07,
+    "relative_fp64": 3.552713678800501e-15,
+    "repetition_pp": 0.0003814697265625
+  },
+  "source_sha256": "90728bec7f521040941a3f0629d6bdb5a3f0d716eb0a18583c55c46f84d043a9"
+}

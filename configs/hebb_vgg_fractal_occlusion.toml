@@ -1,0 +1,70 @@
+[project]
+# All relative paths below are resolved from this project root.
+root = ".."
+
+[paths]
+# Override this placeholder with --imagenet-root or PREDIFY_IMAGENET_ROOT.
+imagenet_root = "__SET_IMAGENET_ROOT__"
+sample_file = "Hebbian-CNN/Log/DatasetSample/N_Back-1.pckl"
+output_dir = "Hebbian-CNN/Log/sharpening_v3/hebb"
+pcoder_weight_dir = "predify2021/model_factory"
+fc_checkpoint = ""
+
+[runtime]
+device = "auto"
+seed = 114514
+max_time_steps = 10
+reduced_time_steps = 2
+max_samples = 2000
+
+[model]
+name = "pvgg"
+pretrained_pcoders = true
+random_init = true
+fc_weight_source = "torchvision"
+fc_hebb_compute_enabled = true
+original_mode = false
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[stimulus]
+canvas_scale = 2.0
+contrast_scale = 0.5
+degradation_mode = "fractal_occlusion"
+# The zero-intensity baseline is identical to predify_noise sigma=0 and is
+# reused from that experiment rather than recomputed here.
+degradation_levels = [0.1, 0.2, 0.3, 0.4, 0.5]
+degradation_seed = 0
+fractal_octaves = 3
+blur_sigma = 1.0
+downsample_after_blur = true
+
+[experiment]
+task_name = "N_Back-"
+gap = 1
+run_priming = true
+run_nonpriming = true
+representation_class_items = 400

@@ -1,0 +1,44 @@
+{
+  "imagenet": {
+    "arm": "trainable_encoder",
+    "level": 16,
+    "test_auc": {
+      "estimate": 0.6556351273148143,
+      "ci_low": 0.6308946397569444,
+      "ci_high": 0.6837031611689812,
+      "seed_sd": 0.00043852559508767607,
+      "seed_min": 0.6551649305555549,
+      "seed_max": 0.6560329861111106
+    },
+    "improvement_over_small": {
+      "estimate": 0.06032986111111097,
+      "ci_low": 0.02889811197916661,
+      "ci_high": 0.09346064814814803,
+      "seed_sd": 0.014099223846163973,
+      "seed_min": 0.04730902777777757,
+      "seed_max": 0.07530381944444442
+    },
+    "evidence_of_growth": true
+  },
+  "things": {
+    "arm": "trainable_encoder",
+    "level": 16,
+    "test_auc": {
+      "estimate": 0.6245138888888887,
+      "ci_low": 0.5994189814814816,
+      "ci_high": 0.6519675925925927,
+      "seed_sd": 0.019415777479242453,
+      "seed_min": 0.6072916666666665,
+      "seed_max": 0.6455555555555554
+    },
+    "improvement_over_small": {
+      "estimate": 0.06062499999999978,
+      "ci_low": 0.034305555555555665,
+      "ci_high": 0.08812673611111124,
+      "seed_sd": 0.013990599798294949,
+      "seed_min": 0.04993055555555537,
+      "seed_max": 0.07645833333333318
+    },
+    "evidence_of_growth": true
+  }
+}

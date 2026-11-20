@@ -1,0 +1,51 @@
+{
+  "dataset": "imagenet",
+  "graph_sha256": "50271018a0e2a8af4dd9d29e13ccbdd2f62bc9b358de4ef73062b03f6499ebb0",
+  "gate_sha256": "02447b48e00ca005bd1fefed7035ecf63e50f1bd11a1a34a418c7842a452f872",
+  "source_sha256": "33348823e10ae0cddc5ea72a7293272684aaaa28f3fe1a3f536f08158c0df336",
+  "windows": [
+    5,
+    10
+  ],
+  "arms": {
+    "baseline": [
+      0.45,
+      false,
+      false
+    ],
+    "higher_mixing": [
+      0.75,
+      false,
+      false
+    ],
+    "higher_mixing_shuffled": [
+      0.75,
+      true,
+      false
+    ],
+    "higher_mixing_original_support": [
+      0.75,
+      false,
+      true
+    ]
+  },
+  "comparisons": [
+    [
+      "higher_mixing",
+      "baseline"
+    ],
+    [
+      "higher_mixing",
+      "higher_mixing_shuffled"
+    ],
+    [
+      "higher_mixing_original_support",
+      "higher_mixing"
+    ],
+    [
+      "higher_mixing_original_support",
+      "baseline"
+    ]
+  ],
+  "note": "exploratory replay on previously inspected test batches; mean suppression unchanged; no parameter search"
+}

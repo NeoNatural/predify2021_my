@@ -1,0 +1,67 @@
+[project]
+root = ".."
+
+[paths]
+imagenet_root = "__SET_IMAGENET_ROOT__"
+sample_file = "Hebbian-CNN/Log/DatasetSample/N_Back-1.pckl"
+output_dir = "Hebbian-CNN/Log/sharpening_v3/nohebb"
+pcoder_weight_dir = "predify2021/model_factory"
+fc_checkpoint = ""
+
+[runtime]
+device = "auto"
+seed = 114514
+max_time_steps = 10
+reduced_time_steps = 2
+max_samples = 2000
+
+[model]
+name = "pvgg"
+pretrained_pcoders = true
+random_init = true
+fc_weight_source = "torchvision"
+fc_hebb_compute_enabled = true
+# Pass through all four Hebbian modules while retaining Predify dynamics.
+original_mode = true
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[[model.hyperparameters]]
+ffm = 0.8
+fbm = 0.1
+erm = 0.01
+
+[stimulus]
+canvas_scale = 2.0
+contrast_scale = 0.5
+degradation_mode = "predify_noise"
+degradation_levels = [0.25, 0.5, 0.75, 1.0, 2.0]
+degradation_seed = 0
+fractal_octaves = 3
+blur_sigma = 1.0
+downsample_after_blur = true
+
+[experiment]
+task_name = "N_Back-"
+gap = 1
+run_priming = true
+run_nonpriming = true
+representation_class_items = 400

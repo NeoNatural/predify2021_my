@@ -1,0 +1,26 @@
+{
+  "seed": 20261008,
+  "bootstrap_samples": 20000,
+  "carrier_files": 14,
+  "multiplicity_cells": 240,
+  "bootstrap_positive": 26,
+  "exact_p_below_05": 16,
+  "bh_below_05": 0,
+  "minimum_q": 0.18526554107666016,
+  "benchmark_conditions": 11,
+  "readout_splits": [
+    {
+      "mode": "fractal_occlusion",
+      "image_overlap": 0,
+      "synset_overlap": 72
+    },
+    {
+      "mode": "predify_noise",
+      "image_overlap": 0,
+      "synset_overlap": 72
+    }
+  ],
+  "clean_nohebb_three_conditions_exactly_equal": false,
+  "clean_nohebb_topk_correctness_equal": true,
+  "interval_scope": "Conditional on saved checkpoint, seeds, readout and selected images; image-level bootstrap; exploratory, not confirmatory."
+}

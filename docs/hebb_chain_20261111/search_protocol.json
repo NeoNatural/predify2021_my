@@ -1,0 +1,8 @@
+{
+  "source_sha256": "ec40038b75c86c5e69fa8e295aa6fc50fa00f64ba44a1d89c01c3c462bf277f5",
+  "primary_protocol": "98ceab295efc643efc9ee76b340d10d0ebad8b481241110b4e633bf4af39b757",
+  "ba_guardrail_pp": 1.0,
+  "margin_guardrail_sd": 0.1,
+  "gain_repeat_guardrail_pp": 0.02,
+  "paired_concept_draws": 4000
+}

@@ -1,0 +1,27 @@
+name: predify2021
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy=1.26.4
+  - scipy=1.13
+  - scikit-learn=1.5
+  - pandas=2.2
+  - matplotlib=3.8
+  - seaborn=0.13
+  - pytorch=2.3.1
+  - torchvision=0.18.1
+  - pytorch-cuda=12.1
+  - tensorboard=2.17
+  - loguru=0.7
+  - toml=0.10.2
+  - pytest=8.3
+  - pip
+  - pip:
+      - git+https://github.com/miladmozafari/predify.git@eca7a741048fdeb29451629cb67e9c3458a8e949
+      - timm==0.9.16
+      - foolbox==3.3.4
+variables:
+  PYTHONNOUSERSITE: "1"

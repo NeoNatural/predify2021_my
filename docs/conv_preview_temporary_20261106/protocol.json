@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "config": {
+    "decay": 0.5,
+    "eta": 0.5,
+    "gain": 0.25,
+    "rho": 0.3333333333333333,
+    "lam": 0.5,
+    "alpha": 0.5,
+    "steps": 3,
+    "a": 0.25,
+    "b": 0.1,
+    "inter_k": 32
+  },
+  "cases": {
+    "clip": [
+      "clip",
+      "none"
+    ],
+    "gate_none": [
+      "gate",
+      "none"
+    ],
+    "gate_rep4": [
+      "gate",
+      "rep4"
+    ],
+    "gate_prd5": [
+      "gate",
+      "prd5"
+    ],
+    "multiply_none": [
+      "multiply",
+      "none"
+    ],
+    "multiply_rep4": [
+      "multiply",
+      "rep4"
+    ],
+    "multiply_prd5": [
+      "multiply",
+      "prd5"
+    ]
+  },
+  "fc_hebb": false,
+  "legacy_conv_hebb": false,
+  "memory_source": "current trial only; no training-set E matrices are opened",
+  "timing": "reset W and PCoder to common gray; preview1 2 steps; write endpoint; preview2 2 steps using W1; write endpoint; freeze; target 15 steps",
+  "write": "H_j=positive spatial mean outer products, source RMS then separate global row-sum normalization; A_j=.5*A_(j-1)+.5*H_j; A2=.25*H1+.5*H2",
+  "structure": "all off-diagonal same-position channel pairs; 8 neighboring columns; mutual top32 across channel-offset pairs from accumulated inter trace; shared weights at every spatial position",
+  "target": "read only; neither decay nor writes; apply to rep4 before its prediction and downstream; prd5 source is current endpoint after pcoder5 forward",
+  "source_activation": "rep4 is the actual modified endpoint rep4; prd5 is unmodified pcoder5 prediction of that same rep4 coordinate system",
+  "nohebb": "same gate/multiply, inhibition, clipping and PCoder carry; W identically zero",
+  "storage": "FC1/FC2 full features; per-trial activation/density and unit-norm full-map Gram matrices per timestep; no convolutional raw maps persisted",
+  "readout": "fixed StandardScaler + LinearSVC(C=1), clean t9 FC2 folds1-3; dev fold4 only; fold0 untouched; no outcome-dependent parameter search",
+  "source_sha256": {
+    "analysis\\conv_preview_temporary_20261106.py": "8fb59c824b8cb220226729b318c4817190327a36a0934b6eb801bd9afce988c0",
+    "predify_experiments\\conv_preview_memory_20261106.py": "c0a18b9425a71d87ed72f495f56990470c6b7be8ff2cafb7444b42f4aadbb404",
+    "analysis\\conv_development_20261104.py": "63ad2ddd065adecc1e062afa5efef1e127c0d2e3dade180d0b6d8d7b8b5d2b51",
+    "analysis\\conv_development_core_20261104.py": "195d501d6e4a94fc14d911c5ef8ba9d2a375d21bcf8a26dc67cdb37de67e5e2c",
+    "predify_experiments\\sequence.py": "83b84df5bfec2b57d790168f5d4775036cc3c9498c161fe610071000252e8413",
+    "Hebbian-CNN\\predify_hebb_inject.py": "6c860e4d7534e18db6dd484426024edfa8038dc4db0b79131c21d55a6e79425a",
+    "analysis\\report_conv_preview_temporary_20261106.py": "c2ceb6026b6af3298f7955d59723336fd20e0fefc996e35ca1aafc8c4657a4b5"
+  }
+}

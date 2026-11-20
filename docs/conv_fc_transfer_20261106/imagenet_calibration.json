@@ -1,0 +1,26 @@
+{
+  "direct_rep4": {
+    "q_rms": 0.059958631527958536,
+    "kappa0": 0.04693053371340274,
+    "query_units": 22920209,
+    "positive_kappa_count": 75264
+  },
+  "direct_prd5": {
+    "q_rms": 0.042963882352594164,
+    "kappa0": 0.03989153949868547,
+    "query_units": 22920209,
+    "positive_kappa_count": 75264
+  },
+  "sae_rep4": {
+    "q_rms": 0.0263141288820751,
+    "kappa0": 0.04457376364893343,
+    "query_units": 22920209,
+    "positive_kappa_count": 75264
+  },
+  "sae_prd5": {
+    "q_rms": 0.022817726731105544,
+    "kappa0": 0.08149246788916509,
+    "query_units": 22920209,
+    "positive_kappa_count": 75264
+  }
+}

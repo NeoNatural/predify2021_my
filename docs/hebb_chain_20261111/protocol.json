@@ -1,0 +1,102 @@
+{
+  "grid": {
+    "a00": [
+      0.015,
+      0.0075,
+      0.015,
+      0.015
+    ],
+    "a01": [
+      0.015,
+      0.0075,
+      0.03,
+      0.03
+    ],
+    "a02": [
+      0.015,
+      0.0075,
+      0.045,
+      0.045
+    ],
+    "a10": [
+      0.03,
+      0.015,
+      0.015,
+      0.015
+    ],
+    "a11": [
+      0.03,
+      0.015,
+      0.03,
+      0.03
+    ],
+    "a12": [
+      0.03,
+      0.015,
+      0.045,
+      0.045
+    ],
+    "a20": [
+      0.045,
+      0.0225,
+      0.015,
+      0.015
+    ],
+    "a21": [
+      0.045,
+      0.0225,
+      0.03,
+      0.03
+    ],
+    "a22": [
+      0.045,
+      0.0225,
+      0.045,
+      0.045
+    ]
+  },
+  "gain": {
+    "gain4": [
+      0.005,
+      0,
+      0,
+      0
+    ],
+    "gain5": [
+      0,
+      0.005,
+      0,
+      0
+    ],
+    "gainfc": [
+      0,
+      0,
+      0.005,
+      0.005
+    ]
+  },
+  "preview_lambda": [
+    0.03,
+    0.015,
+    0.0,
+    0.0
+  ],
+  "target_steps": 15,
+  "side_steps": 5,
+  "folds": {
+    "train": [
+      1,
+      2,
+      3
+    ],
+    "dev": 4,
+    "heldout": 0
+  },
+  "sources": {
+    "analysis\\hebb_chain_20261111.py": "e6a3b1e141ec2a4cac40273367e196683220d030084fdfd49a8f8f905fab1a4d",
+    "docs\\pcoder4_pcoder5_fc1_fc2_hebbian_plan_20261111.md": "0efb23fe86ef923dafa10917e68e66d3ca933aa74ed1a8dbc2914329e99f9622",
+    "predify_experiments\\hebb_chain.py": "4f18110ffa61fdffe1d176105b99bde520056fc42691ddeb696050230c1fd0b3",
+    "predify_experiments\\conv_preview_memory_20261106.py": "c0a18b9425a71d87ed72f495f56990470c6b7be8ff2cafb7444b42f4aadbb404",
+    "predify_experiments\\fc_sae_gain_20261105.py": "ff385ba5f83e21b3a5ef7b0e743313d809ec3dc36b41fbbded71c7473293bd6f"
+  }
+}

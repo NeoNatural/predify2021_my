@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "config": {
+    "epsilon": 0.03,
+    "lam": 0.03,
+    "steps": 5,
+    "rho": 0.3333333333333333
+  },
+  "cases": [
+    "clip",
+    "direct_rep4_full",
+    "direct_rep4_pool",
+    "direct_rep4_shuffle",
+    "direct_rep4_scale",
+    "direct_prd5_full",
+    "direct_prd5_pool",
+    "direct_prd5_shuffle",
+    "direct_prd5_scale",
+    "sae_rep4_full",
+    "sae_rep4_pool",
+    "sae_rep4_shuffle",
+    "sae_rep4_scale",
+    "sae_prd5_full",
+    "sae_prd5_pool",
+    "sae_prd5_shuffle",
+    "sae_prd5_scale"
+  ],
+  "clean_only": true,
+  "fc_hebb": false,
+  "legacy_hebb": false,
+  "constraint": "trial reset; preview 2+2; two endpoint writes; target 15 steps read only, no decay; PCoder carry within trial",
+  "memory": "same spatial coactivation and decay/eta .5/.5 as corrected convolution pilot; all within-column nonself candidates; neighbor mutual top32",
+  "source": "rep4 or prd5 endpoint; both use one shared codec per dataset and the same original rep4 scale",
+  "direct": "512 native channels; SAE branch uses 64 codes per spatial column; no spatial flattening before memory",
+  "sae": "fixed512->32 signed Hadamard projection; tied64-latent SAE; 2112 learned parameters; training-fold only; frozen; gain signal only",
+  "fit": "deterministic 24/30 training targets, folds1-3; first concept per category per fold, two images; equal target/preview role weight; 32 uniform spatial samples per frame; 1000 steps",
+  "calibration": "q RMS on positive native query units; positive kappa mean across training positions; pooled exact/different t0,t9; separate branch/source/dataset, frozen before development",
+  "read": "q=codec.adjoint[(z>0)*Wz]; kappa=channel_sum(z*Wz)/channel_sum(z²); m=epsilon*(tanh(q/c)-sum_channel(x*tanh(q/c))/sum_channel(x))",
+  "inhibition": "local mean+population_std from same-column and valid8-neighbor column mixture; tau=lambda*(mu+sd)*kappa/(kappa+kappa0); next=ReLU[x*(1+m)-tau], five steps",
+  "controls": "pool: epsilon0, same matching rule; shuffle: channel/code permutation only after preview2; scale: replay full 19-step global rep4 mean profile into an independent recurrent sequence",
+  "none": "two gray frames, 2+2 steps; no writes; one exact shared baseline after identity acceptance",
+  "no_search": true,
+  "parameters": "FC final epsilon .03 lambda .03 steps5 transferred unchanged; training fits proxy and calibration only",
+  "readout": "frozen original FC1 and FC2 StandardScaler+LinearSVC C1, clean t9 reference folds1-3; no latent/reconstruction SVM",
+  "source_sha256": {
+    "analysis\\conv_fc_transfer_20261106.py": "b0263705c58381c2647162ebb6bb8d628c877f83db553ea04fbfc79bdff6003a",
+    "predify_experiments\\conv_fc_transfer_20261106.py": "194db868e28cc8b28d7fa6c717b07f7e0ca13dc7382160c59006e89a23441037",
+    "predify_experiments\\conv_preview_memory_20261106.py": "c0a18b9425a71d87ed72f495f56990470c6b7be8ff2cafb7444b42f4aadbb404",
+    "predify_experiments\\fc_sae_gain_20261105.py": "ff385ba5f83e21b3a5ef7b0e743313d809ec3dc36b41fbbded71c7473293bd6f",
+    "analysis\\conv_preview_temporary_20261106.py": "8fb59c824b8cb220226729b318c4817190327a36a0934b6eb801bd9afce988c0",
+    "analysis\\report_conv_fc_transfer_20261106.py": "aba5ce2c90d1de5b2a789c3f03929451aafd5f6a26eb302f8cb2f031e5a62b52"
+  }
+}

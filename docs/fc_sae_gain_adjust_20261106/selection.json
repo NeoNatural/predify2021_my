@@ -1,0 +1,86 @@
+{
+  "ranking": [
+    {
+      "name": "e0.05_b4.0_g0.0",
+      "eligible": true,
+      "min_fisher": -0.3591716683805424,
+      "mean_fisher": -0.26148759027966595
+    },
+    {
+      "name": "e0.05_b4.0_g0.25",
+      "eligible": true,
+      "min_fisher": -0.3860952001888518,
+      "mean_fisher": -0.3098480700997788
+    },
+    {
+      "name": "e0.05_b4.0_g1.0",
+      "eligible": true,
+      "min_fisher": -0.7874433695236993,
+      "mean_fisher": -0.5914625808467313
+    },
+    {
+      "name": "e0.05_b12.0_g0.0",
+      "eligible": true,
+      "min_fisher": -1.070891119038353,
+      "mean_fisher": -0.7849549161219077
+    },
+    {
+      "name": "e0.05_b12.0_g0.25",
+      "eligible": true,
+      "min_fisher": -1.1235788146909065,
+      "mean_fisher": -0.8516235232651534
+    },
+    {
+      "name": "e0.05_b12.0_g1.0",
+      "eligible": true,
+      "min_fisher": -1.4209319311591417,
+      "mean_fisher": -1.1983717248141441
+    },
+    {
+      "name": "e0.15_b4.0_g0.0",
+      "eligible": true,
+      "min_fisher": -1.0708911263209275,
+      "mean_fisher": -0.7849549346370068
+    },
+    {
+      "name": "e0.15_b4.0_g0.25",
+      "eligible": true,
+      "min_fisher": -1.2943793209342025,
+      "mean_fisher": -1.0531629097817088
+    },
+    {
+      "name": "e0.15_b4.0_g1.0",
+      "eligible": true,
+      "min_fisher": -4.5911965582297825,
+      "mean_fisher": -4.049381974077796
+    },
+    {
+      "name": "e0.15_b12.0_g0.0",
+      "eligible": false,
+      "min_fisher": -3.131788887177478,
+      "mean_fisher": -2.330195120422222
+    },
+    {
+      "name": "e0.15_b12.0_g0.25",
+      "eligible": false,
+      "min_fisher": -3.6142125720709184,
+      "mean_fisher": -2.800360438008716
+    },
+    {
+      "name": "e0.15_b12.0_g1.0",
+      "eligible": false,
+      "min_fisher": -7.276885773699638,
+      "mean_fisher": -6.796952164914353
+    }
+  ],
+  "selection_training_only": true,
+  "certified": false,
+  "config": {
+    "name": "e0.05_b4.0_g0.0",
+    "eta": 0.05,
+    "beta": 4.0,
+    "gamma": 0.0,
+    "alpha": 1.0,
+    "steps": 5
+  }
+}
